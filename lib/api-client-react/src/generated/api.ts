@@ -5,18 +5,34 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ApiError,
+  AskClaudeBody,
+  Connection,
+  CreateConnectionBody,
+  CreateNodeBody,
+  CreateThoughtMapBody,
+  HealthStatus,
+  Node,
+  ThoughtMap,
+  ThoughtMapFull,
+  UpdateNodeBody,
+  UpdateThoughtMapBody,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +115,1114 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List all thought maps
+ */
+export const getListThoughtMapsUrl = () => {
+  return `/api/thought-maps`;
+};
+
+export const listThoughtMaps = async (
+  options?: RequestInit,
+): Promise<ThoughtMap[]> => {
+  return customFetch<ThoughtMap[]>(getListThoughtMapsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListThoughtMapsQueryKey = () => {
+  return [`/api/thought-maps`] as const;
+};
+
+export const getListThoughtMapsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listThoughtMaps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listThoughtMaps>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListThoughtMapsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listThoughtMaps>>> = ({
+    signal,
+  }) => listThoughtMaps({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listThoughtMaps>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListThoughtMapsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listThoughtMaps>>
+>;
+export type ListThoughtMapsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all thought maps
+ */
+
+export function useListThoughtMaps<
+  TData = Awaited<ReturnType<typeof listThoughtMaps>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listThoughtMaps>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListThoughtMapsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new thought map
+ */
+export const getCreateThoughtMapUrl = () => {
+  return `/api/thought-maps`;
+};
+
+export const createThoughtMap = async (
+  createThoughtMapBody: CreateThoughtMapBody,
+  options?: RequestInit,
+): Promise<ThoughtMap> => {
+  return customFetch<ThoughtMap>(getCreateThoughtMapUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createThoughtMapBody),
+  });
+};
+
+export const getCreateThoughtMapMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createThoughtMap>>,
+    TError,
+    { data: BodyType<CreateThoughtMapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createThoughtMap>>,
+  TError,
+  { data: BodyType<CreateThoughtMapBody> },
+  TContext
+> => {
+  const mutationKey = ["createThoughtMap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createThoughtMap>>,
+    { data: BodyType<CreateThoughtMapBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createThoughtMap(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateThoughtMapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createThoughtMap>>
+>;
+export type CreateThoughtMapMutationBody = BodyType<CreateThoughtMapBody>;
+export type CreateThoughtMapMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new thought map
+ */
+export const useCreateThoughtMap = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createThoughtMap>>,
+    TError,
+    { data: BodyType<CreateThoughtMapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createThoughtMap>>,
+  TError,
+  { data: BodyType<CreateThoughtMapBody> },
+  TContext
+> => {
+  return useMutation(getCreateThoughtMapMutationOptions(options));
+};
+
+/**
+ * @summary Get a thought map with all nodes and connections
+ */
+export const getGetThoughtMapUrl = (id: number) => {
+  return `/api/thought-maps/${id}`;
+};
+
+export const getThoughtMap = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ThoughtMapFull> => {
+  return customFetch<ThoughtMapFull>(getGetThoughtMapUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetThoughtMapQueryKey = (id: number) => {
+  return [`/api/thought-maps/${id}`] as const;
+};
+
+export const getGetThoughtMapQueryOptions = <
+  TData = Awaited<ReturnType<typeof getThoughtMap>>,
+  TError = ErrorType<ApiError>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getThoughtMap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetThoughtMapQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getThoughtMap>>> = ({
+    signal,
+  }) => getThoughtMap(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getThoughtMap>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetThoughtMapQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getThoughtMap>>
+>;
+export type GetThoughtMapQueryError = ErrorType<ApiError>;
+
+/**
+ * @summary Get a thought map with all nodes and connections
+ */
+
+export function useGetThoughtMap<
+  TData = Awaited<ReturnType<typeof getThoughtMap>>,
+  TError = ErrorType<ApiError>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getThoughtMap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetThoughtMapQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a thought map
+ */
+export const getUpdateThoughtMapUrl = (id: number) => {
+  return `/api/thought-maps/${id}`;
+};
+
+export const updateThoughtMap = async (
+  id: number,
+  updateThoughtMapBody: UpdateThoughtMapBody,
+  options?: RequestInit,
+): Promise<ThoughtMap> => {
+  return customFetch<ThoughtMap>(getUpdateThoughtMapUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateThoughtMapBody),
+  });
+};
+
+export const getUpdateThoughtMapMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateThoughtMap>>,
+    TError,
+    { id: number; data: BodyType<UpdateThoughtMapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateThoughtMap>>,
+  TError,
+  { id: number; data: BodyType<UpdateThoughtMapBody> },
+  TContext
+> => {
+  const mutationKey = ["updateThoughtMap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateThoughtMap>>,
+    { id: number; data: BodyType<UpdateThoughtMapBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateThoughtMap(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateThoughtMapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateThoughtMap>>
+>;
+export type UpdateThoughtMapMutationBody = BodyType<UpdateThoughtMapBody>;
+export type UpdateThoughtMapMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a thought map
+ */
+export const useUpdateThoughtMap = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateThoughtMap>>,
+    TError,
+    { id: number; data: BodyType<UpdateThoughtMapBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateThoughtMap>>,
+  TError,
+  { id: number; data: BodyType<UpdateThoughtMapBody> },
+  TContext
+> => {
+  return useMutation(getUpdateThoughtMapMutationOptions(options));
+};
+
+/**
+ * @summary Delete a thought map
+ */
+export const getDeleteThoughtMapUrl = (id: number) => {
+  return `/api/thought-maps/${id}`;
+};
+
+export const deleteThoughtMap = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteThoughtMapUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteThoughtMapMutationOptions = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteThoughtMap>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteThoughtMap>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteThoughtMap"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteThoughtMap>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteThoughtMap(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteThoughtMapMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteThoughtMap>>
+>;
+
+export type DeleteThoughtMapMutationError = ErrorType<ApiError>;
+
+/**
+ * @summary Delete a thought map
+ */
+export const useDeleteThoughtMap = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteThoughtMap>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteThoughtMap>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteThoughtMapMutationOptions(options));
+};
+
+/**
+ * @summary List all nodes in a thought map
+ */
+export const getListNodesUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/nodes`;
+};
+
+export const listNodes = async (
+  mapId: number,
+  options?: RequestInit,
+): Promise<Node[]> => {
+  return customFetch<Node[]>(getListNodesUrl(mapId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListNodesQueryKey = (mapId: number) => {
+  return [`/api/thought-maps/${mapId}/nodes`] as const;
+};
+
+export const getListNodesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNodes>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListNodesQueryKey(mapId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listNodes>>> = ({
+    signal,
+  }) => listNodes(mapId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!mapId,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listNodes>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type ListNodesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNodes>>
+>;
+export type ListNodesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all nodes in a thought map
+ */
+
+export function useListNodes<
+  TData = Awaited<ReturnType<typeof listNodes>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNodes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListNodesQueryOptions(mapId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a node in a thought map
+ */
+export const getCreateNodeUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/nodes`;
+};
+
+export const createNode = async (
+  mapId: number,
+  createNodeBody: CreateNodeBody,
+  options?: RequestInit,
+): Promise<Node> => {
+  return customFetch<Node>(getCreateNodeUrl(mapId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createNodeBody),
+  });
+};
+
+export const getCreateNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNode>>,
+    TError,
+    { mapId: number; data: BodyType<CreateNodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createNode>>,
+  TError,
+  { mapId: number; data: BodyType<CreateNodeBody> },
+  TContext
+> => {
+  const mutationKey = ["createNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createNode>>,
+    { mapId: number; data: BodyType<CreateNodeBody> }
+  > = (props) => {
+    const { mapId, data } = props ?? {};
+
+    return createNode(mapId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createNode>>
+>;
+export type CreateNodeMutationBody = BodyType<CreateNodeBody>;
+export type CreateNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a node in a thought map
+ */
+export const useCreateNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNode>>,
+    TError,
+    { mapId: number; data: BodyType<CreateNodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createNode>>,
+  TError,
+  { mapId: number; data: BodyType<CreateNodeBody> },
+  TContext
+> => {
+  return useMutation(getCreateNodeMutationOptions(options));
+};
+
+/**
+ * @summary Update a node
+ */
+export const getUpdateNodeUrl = (mapId: number, nodeId: number) => {
+  return `/api/thought-maps/${mapId}/nodes/${nodeId}`;
+};
+
+export const updateNode = async (
+  mapId: number,
+  nodeId: number,
+  updateNodeBody: UpdateNodeBody,
+  options?: RequestInit,
+): Promise<Node> => {
+  return customFetch<Node>(getUpdateNodeUrl(mapId, nodeId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateNodeBody),
+  });
+};
+
+export const getUpdateNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNode>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<UpdateNodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateNode>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<UpdateNodeBody> },
+  TContext
+> => {
+  const mutationKey = ["updateNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateNode>>,
+    { mapId: number; nodeId: number; data: BodyType<UpdateNodeBody> }
+  > = (props) => {
+    const { mapId, nodeId, data } = props ?? {};
+
+    return updateNode(mapId, nodeId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNode>>
+>;
+export type UpdateNodeMutationBody = BodyType<UpdateNodeBody>;
+export type UpdateNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a node
+ */
+export const useUpdateNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNode>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<UpdateNodeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateNode>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<UpdateNodeBody> },
+  TContext
+> => {
+  return useMutation(getUpdateNodeMutationOptions(options));
+};
+
+/**
+ * @summary Delete a node
+ */
+export const getDeleteNodeUrl = (mapId: number, nodeId: number) => {
+  return `/api/thought-maps/${mapId}/nodes/${nodeId}`;
+};
+
+export const deleteNode = async (
+  mapId: number,
+  nodeId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteNodeUrl(mapId, nodeId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNode>>,
+    TError,
+    { mapId: number; nodeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteNode>>,
+  TError,
+  { mapId: number; nodeId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteNode>>,
+    { mapId: number; nodeId: number }
+  > = (props) => {
+    const { mapId, nodeId } = props ?? {};
+
+    return deleteNode(mapId, nodeId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteNode>>
+>;
+
+export type DeleteNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a node
+ */
+export const useDeleteNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNode>>,
+    TError,
+    { mapId: number; nodeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteNode>>,
+  TError,
+  { mapId: number; nodeId: number },
+  TContext
+> => {
+  return useMutation(getDeleteNodeMutationOptions(options));
+};
+
+/**
+ * @summary List all connections in a thought map
+ */
+export const getListConnectionsUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/connections`;
+};
+
+export const listConnections = async (
+  mapId: number,
+  options?: RequestInit,
+): Promise<Connection[]> => {
+  return customFetch<Connection[]>(getListConnectionsUrl(mapId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListConnectionsQueryKey = (mapId: number) => {
+  return [`/api/thought-maps/${mapId}/connections`] as const;
+};
+
+export const getListConnectionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listConnections>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listConnections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListConnectionsQueryKey(mapId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listConnections>>> = ({
+    signal,
+  }) => listConnections(mapId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!mapId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listConnections>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListConnectionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listConnections>>
+>;
+export type ListConnectionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all connections in a thought map
+ */
+
+export function useListConnections<
+  TData = Awaited<ReturnType<typeof listConnections>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listConnections>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListConnectionsQueryOptions(mapId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a connection between nodes
+ */
+export const getCreateConnectionUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/connections`;
+};
+
+export const createConnection = async (
+  mapId: number,
+  createConnectionBody: CreateConnectionBody,
+  options?: RequestInit,
+): Promise<Connection> => {
+  return customFetch<Connection>(getCreateConnectionUrl(mapId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createConnectionBody),
+  });
+};
+
+export const getCreateConnectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createConnection>>,
+    TError,
+    { mapId: number; data: BodyType<CreateConnectionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createConnection>>,
+  TError,
+  { mapId: number; data: BodyType<CreateConnectionBody> },
+  TContext
+> => {
+  const mutationKey = ["createConnection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createConnection>>,
+    { mapId: number; data: BodyType<CreateConnectionBody> }
+  > = (props) => {
+    const { mapId, data } = props ?? {};
+
+    return createConnection(mapId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createConnection>>
+>;
+export type CreateConnectionMutationBody = BodyType<CreateConnectionBody>;
+export type CreateConnectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a connection between nodes
+ */
+export const useCreateConnection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createConnection>>,
+    TError,
+    { mapId: number; data: BodyType<CreateConnectionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createConnection>>,
+  TError,
+  { mapId: number; data: BodyType<CreateConnectionBody> },
+  TContext
+> => {
+  return useMutation(getCreateConnectionMutationOptions(options));
+};
+
+/**
+ * @summary Delete a connection
+ */
+export const getDeleteConnectionUrl = (mapId: number, connectionId: number) => {
+  return `/api/thought-maps/${mapId}/connections/${connectionId}`;
+};
+
+export const deleteConnection = async (
+  mapId: number,
+  connectionId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteConnectionUrl(mapId, connectionId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteConnectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteConnection>>,
+    TError,
+    { mapId: number; connectionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteConnection>>,
+  TError,
+  { mapId: number; connectionId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteConnection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteConnection>>,
+    { mapId: number; connectionId: number }
+  > = (props) => {
+    const { mapId, connectionId } = props ?? {};
+
+    return deleteConnection(mapId, connectionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteConnection>>
+>;
+
+export type DeleteConnectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a connection
+ */
+export const useDeleteConnection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteConnection>>,
+    TError,
+    { mapId: number; connectionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteConnection>>,
+  TError,
+  { mapId: number; connectionId: number },
+  TContext
+> => {
+  return useMutation(getDeleteConnectionMutationOptions(options));
+};
+
+/**
+ * @summary Send node content to Claude and stream a response (SSE)
+ */
+export const getAskClaudeUrl = (mapId: number, nodeId: number) => {
+  return `/api/thought-maps/${mapId}/nodes/${nodeId}/ask-claude`;
+};
+
+export const askClaude = async (
+  mapId: number,
+  nodeId: number,
+  askClaudeBody: AskClaudeBody,
+  options?: RequestInit,
+): Promise<unknown> => {
+  return customFetch<unknown>(getAskClaudeUrl(mapId, nodeId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(askClaudeBody),
+  });
+};
+
+export const getAskClaudeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof askClaude>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<AskClaudeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof askClaude>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<AskClaudeBody> },
+  TContext
+> => {
+  const mutationKey = ["askClaude"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof askClaude>>,
+    { mapId: number; nodeId: number; data: BodyType<AskClaudeBody> }
+  > = (props) => {
+    const { mapId, nodeId, data } = props ?? {};
+
+    return askClaude(mapId, nodeId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AskClaudeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof askClaude>>
+>;
+export type AskClaudeMutationBody = BodyType<AskClaudeBody>;
+export type AskClaudeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send node content to Claude and stream a response (SSE)
+ */
+export const useAskClaude = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof askClaude>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<AskClaudeBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof askClaude>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<AskClaudeBody> },
+  TContext
+> => {
+  return useMutation(getAskClaudeMutationOptions(options));
+};

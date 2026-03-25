@@ -14,3 +14,210 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary List all thought maps
+ */
+export const ListThoughtMapsResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+export const ListThoughtMapsResponse = zod.array(ListThoughtMapsResponseItem);
+
+/**
+ * @summary Create a new thought map
+ */
+export const CreateThoughtMapBody = zod.object({
+  title: zod.string(),
+});
+
+/**
+ * @summary Get a thought map with all nodes and connections
+ */
+export const GetThoughtMapParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetThoughtMapResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+  nodes: zod.array(
+    zod.object({
+      id: zod.number(),
+      mapId: zod.number(),
+      content: zod.string(),
+      positionX: zod.number(),
+      positionY: zod.number(),
+      width: zod.number(),
+      height: zod.number(),
+      claudeResponse: zod.string().nullish(),
+      isProcessing: zod.boolean(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+  connections: zod.array(
+    zod.object({
+      id: zod.number(),
+      mapId: zod.number(),
+      fromNodeId: zod.number(),
+      toNodeId: zod.number(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update a thought map
+ */
+export const UpdateThoughtMapParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateThoughtMapBody = zod.object({
+  title: zod.string().optional(),
+});
+
+export const UpdateThoughtMapResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a thought map
+ */
+export const DeleteThoughtMapParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List all nodes in a thought map
+ */
+export const ListNodesParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const ListNodesResponseItem = zod.object({
+  id: zod.number(),
+  mapId: zod.number(),
+  content: zod.string(),
+  positionX: zod.number(),
+  positionY: zod.number(),
+  width: zod.number(),
+  height: zod.number(),
+  claudeResponse: zod.string().nullish(),
+  isProcessing: zod.boolean(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+export const ListNodesResponse = zod.array(ListNodesResponseItem);
+
+/**
+ * @summary Create a node in a thought map
+ */
+export const CreateNodeParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const CreateNodeBody = zod.object({
+  content: zod.string(),
+  positionX: zod.number(),
+  positionY: zod.number(),
+  width: zod.number().optional(),
+  height: zod.number().optional(),
+});
+
+/**
+ * @summary Update a node
+ */
+export const UpdateNodeParams = zod.object({
+  mapId: zod.coerce.number(),
+  nodeId: zod.coerce.number(),
+});
+
+export const UpdateNodeBody = zod.object({
+  content: zod.string().optional(),
+  positionX: zod.number().optional(),
+  positionY: zod.number().optional(),
+  width: zod.number().optional(),
+  height: zod.number().optional(),
+  claudeResponse: zod.string().nullish(),
+  isProcessing: zod.boolean().optional(),
+});
+
+export const UpdateNodeResponse = zod.object({
+  id: zod.number(),
+  mapId: zod.number(),
+  content: zod.string(),
+  positionX: zod.number(),
+  positionY: zod.number(),
+  width: zod.number(),
+  height: zod.number(),
+  claudeResponse: zod.string().nullish(),
+  isProcessing: zod.boolean(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a node
+ */
+export const DeleteNodeParams = zod.object({
+  mapId: zod.coerce.number(),
+  nodeId: zod.coerce.number(),
+});
+
+/**
+ * @summary List all connections in a thought map
+ */
+export const ListConnectionsParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const ListConnectionsResponseItem = zod.object({
+  id: zod.number(),
+  mapId: zod.number(),
+  fromNodeId: zod.number(),
+  toNodeId: zod.number(),
+  createdAt: zod.date(),
+});
+export const ListConnectionsResponse = zod.array(ListConnectionsResponseItem);
+
+/**
+ * @summary Create a connection between nodes
+ */
+export const CreateConnectionParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const CreateConnectionBody = zod.object({
+  fromNodeId: zod.number(),
+  toNodeId: zod.number(),
+});
+
+/**
+ * @summary Delete a connection
+ */
+export const DeleteConnectionParams = zod.object({
+  mapId: zod.coerce.number(),
+  connectionId: zod.coerce.number(),
+});
+
+/**
+ * @summary Send node content to Claude and stream a response (SSE)
+ */
+export const AskClaudeParams = zod.object({
+  mapId: zod.coerce.number(),
+  nodeId: zod.coerce.number(),
+});
+
+export const AskClaudeBody = zod.object({
+  prompt: zod.string(),
+  contextNodeIds: zod.array(zod.number()).optional(),
+});

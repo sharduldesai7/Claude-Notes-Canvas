@@ -6,4 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./apiError";
+export * from "./askClaudeBody";
+export * from "./connection";
+export * from "./createConnectionBody";
+export * from "./createNodeBody";
+export * from "./createThoughtMapBody";
 export * from "./healthStatus";
+export * from "./node";
+export * from "./thoughtMap";
+export * from "./thoughtMapFull";
+export * from "./updateNodeBody";
+export * from "./updateThoughtMapBody";

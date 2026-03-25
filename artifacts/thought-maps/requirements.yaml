@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For fluid, natural animations and drag interactions"
+  "@use-gesture/react": "For smooth canvas panning, zooming, and node dragging interactions"
+  "date-fns": "For formatting created and updated timestamps elegantly"
+  "clsx": "For conditional class name joining"
+  "tailwind-merge": "For intelligently merging tailwind classes without conflicts"
+
+images:
+  - path: "artifacts/thought-maps/public/images/empty-state.png"
+    description: "A minimalist, abstract line art illustration of a notebook and pen with floating geometric shapes, soft warm neutral colors"
+    aspect_ratio: "1:1"
+
+notes:
+  - The canvas uses custom drag and pan logic via @use-gesture/react.
+  - SSE Streaming for Claude responses uses a raw fetch request parsing ReadableStream chunks.

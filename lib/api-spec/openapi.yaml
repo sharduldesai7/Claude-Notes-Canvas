@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: thought-maps
+    description: Thought Maps operations
+  - name: anthropic
+    description: Anthropic AI chat operations
 paths:
   /healthz:
     get:
@@ -24,6 +27,290 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /thought-maps:
+    get:
+      operationId: listThoughtMaps
+      tags: [thought-maps]
+      summary: List all thought maps
+      responses:
+        "200":
+          description: List of thought maps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThoughtMap"
+    post:
+      operationId: createThoughtMap
+      tags: [thought-maps]
+      summary: Create a new thought map
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateThoughtMapBody"
+      responses:
+        "201":
+          description: Created thought map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThoughtMap"
+
+  /thought-maps/{id}:
+    get:
+      operationId: getThoughtMap
+      tags: [thought-maps]
+      summary: Get a thought map with all nodes and connections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Full thought map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThoughtMapFull"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateThoughtMap
+      tags: [thought-maps]
+      summary: Update a thought map
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateThoughtMapBody"
+      responses:
+        "200":
+          description: Updated thought map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThoughtMap"
+    delete:
+      operationId: deleteThoughtMap
+      tags: [thought-maps]
+      summary: Delete a thought map
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /thought-maps/{mapId}/nodes:
+    get:
+      operationId: listNodes
+      tags: [thought-maps]
+      summary: List all nodes in a thought map
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Node"
+    post:
+      operationId: createNode
+      tags: [thought-maps]
+      summary: Create a node in a thought map
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNodeBody"
+      responses:
+        "201":
+          description: Created node
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+
+  /thought-maps/{mapId}/nodes/{nodeId}:
+    patch:
+      operationId: updateNode
+      tags: [thought-maps]
+      summary: Update a node
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNodeBody"
+      responses:
+        "200":
+          description: Updated node
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+    delete:
+      operationId: deleteNode
+      tags: [thought-maps]
+      summary: Delete a node
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /thought-maps/{mapId}/connections:
+    get:
+      operationId: listConnections
+      tags: [thought-maps]
+      summary: List all connections in a thought map
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Connection"
+    post:
+      operationId: createConnection
+      tags: [thought-maps]
+      summary: Create a connection between nodes
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConnectionBody"
+      responses:
+        "201":
+          description: Created connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Connection"
+
+  /thought-maps/{mapId}/connections/{connectionId}:
+    delete:
+      operationId: deleteConnection
+      tags: [thought-maps]
+      summary: Delete a connection
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /thought-maps/{mapId}/nodes/{nodeId}/ask-claude:
+    post:
+      operationId: askClaude
+      tags: [thought-maps]
+      summary: Send node content to Claude and stream a response (SSE)
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskClaudeBody"
+      responses:
+        "200":
+          description: SSE stream of Claude response
+          content:
+            text/event-stream: {}
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +321,193 @@ components:
       required:
         - status
 
+    ThoughtMap:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+        - updatedAt
+
+    ThoughtMapFull:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+      required:
+        - id
+        - title
+        - createdAt
+        - updatedAt
+        - nodes
+        - connections
+
+    Node:
+      type: object
+      properties:
+        id:
+          type: integer
+        mapId:
+          type: integer
+        content:
+          type: string
+        positionX:
+          type: number
+        positionY:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        claudeResponse:
+          type: string
+          nullable: true
+        isProcessing:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - mapId
+        - content
+        - positionX
+        - positionY
+        - width
+        - height
+        - isProcessing
+        - createdAt
+        - updatedAt
+
+    Connection:
+      type: object
+      properties:
+        id:
+          type: integer
+        mapId:
+          type: integer
+        fromNodeId:
+          type: integer
+        toNodeId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - mapId
+        - fromNodeId
+        - toNodeId
+        - createdAt
+
+    CreateThoughtMapBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+
+    UpdateThoughtMapBody:
+      type: object
+      properties:
+        title:
+          type: string
+
+    CreateNodeBody:
+      type: object
+      properties:
+        content:
+          type: string
+        positionX:
+          type: number
+        positionY:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+      required:
+        - content
+        - positionX
+        - positionY
+
+    UpdateNodeBody:
+      type: object
+      properties:
+        content:
+          type: string
+        positionX:
+          type: number
+        positionY:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        claudeResponse:
+          type: string
+          nullable: true
+        isProcessing:
+          type: boolean
+
+    CreateConnectionBody:
+      type: object
+      properties:
+        fromNodeId:
+          type: integer
+        toNodeId:
+          type: integer
+      required:
+        - fromNodeId
+        - toNodeId
+
+    AskClaudeBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+        contextNodeIds:
+          type: array
+          items:
+            type: integer
+      required:
+        - prompt
+
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

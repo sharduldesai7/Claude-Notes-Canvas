@@ -8,3 +8,81 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ThoughtMap {
+  id: number;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Node {
+  id: number;
+  mapId: number;
+  content: string;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  claudeResponse?: string | null;
+  isProcessing: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Connection {
+  id: number;
+  mapId: number;
+  fromNodeId: number;
+  toNodeId: number;
+  createdAt: string;
+}
+
+export interface ThoughtMapFull {
+  id: number;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  nodes: Node[];
+  connections: Connection[];
+}
+
+export interface CreateThoughtMapBody {
+  title: string;
+}
+
+export interface UpdateThoughtMapBody {
+  title?: string;
+}
+
+export interface CreateNodeBody {
+  content: string;
+  positionX: number;
+  positionY: number;
+  width?: number;
+  height?: number;
+}
+
+export interface UpdateNodeBody {
+  content?: string;
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  claudeResponse?: string | null;
+  isProcessing?: boolean;
+}
+
+export interface CreateConnectionBody {
+  fromNodeId: number;
+  toNodeId: number;
+}
+
+export interface AskClaudeBody {
+  prompt: string;
+  contextNodeIds?: number[];
+}
+
+export interface ApiError {
+  error: string;
+}
