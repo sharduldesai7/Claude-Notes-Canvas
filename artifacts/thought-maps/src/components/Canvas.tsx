@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useGesture } from "@use-gesture/react";
 import { ThoughtMapFull } from "@workspace/api-client-react";
 import { useCreateNode } from "@/hooks/use-nodes";
-import { useDeleteConnection } from "@/hooks/use-connections";
+
 import { NodeCard } from "./NodeCard";
 
 interface CanvasProps {
@@ -17,7 +17,6 @@ export function Canvas({ map }: CanvasProps) {
   const [zoom, setZoom] = useState(1);
 
   const { mutate: createNode } = useCreateNode();
-  const { mutate: deleteConnection } = useDeleteConnection();
 
   useGesture(
     {
@@ -55,13 +54,6 @@ export function Canvas({ map }: CanvasProps) {
     });
   };
 
-  const getNodeCenter = (nodeId: number) => {
-    const node = map.nodes.find((n) => n.id === nodeId);
-    if (!node) return { x: 0, y: 0 };
-    const w = node.width || 280;
-    return { x: node.positionX + w / 2, y: node.positionY + 50 };
-  };
-
   return (
     <div
       ref={containerRef}
@@ -76,60 +68,6 @@ export function Canvas({ map }: CanvasProps) {
         className="absolute inset-0 origin-top-left"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
       >
-        {/* SVG Connections Layer — uses CSS classes for color so CSS vars work */}
-        <svg
-          className="absolute inset-0 overflow-visible pointer-events-none z-0"
-          style={{ width: '100%', height: '100%' }}
-        >
-          <defs>
-            <marker
-              id="synaptica-arrow"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              {/* Use className for fill so Tailwind/CSS vars resolve */}
-              <polygon
-                points="0 0, 10 3.5, 0 7"
-                className="fill-primary"
-                style={{ fill: 'hsl(var(--primary))' }}
-              />
-            </marker>
-          </defs>
-
-          {map.connections.map((conn) => {
-            const from = getNodeCenter(conn.fromNodeId);
-            const to = getNodeCenter(conn.toNodeId);
-            const dist = Math.abs(to.x - from.x) * 0.5;
-            const path = `M ${from.x} ${from.y} C ${from.x + dist} ${from.y}, ${to.x - dist} ${to.y}, ${to.x} ${to.y}`;
-
-            return (
-              <g
-                key={conn.id}
-                className="group pointer-events-auto cursor-pointer"
-                onClick={() => deleteConnection({ mapId: map.id, connectionId: conn.id })}
-              >
-                {/* Wide invisible hit area */}
-                <path d={path} stroke="transparent" strokeWidth="20" fill="none" />
-                {/* Visible dashed path — use style for CSS var compatibility in SVG attributes */}
-                <path
-                  d={path}
-                  style={{
-                    stroke: 'hsl(var(--primary) / 0.55)',
-                    fill: 'none',
-                  }}
-                  strokeWidth="2"
-                  strokeDasharray="6 5"
-                  markerEnd="url(#synaptica-arrow)"
-                  className="group-hover:[stroke:hsl(var(--destructive))] transition-colors duration-200"
-                />
-              </g>
-            );
-          })}
-        </svg>
-
         {/* Nodes Layer */}
         <div className="absolute inset-0 z-10 pointer-events-none">
           {map.nodes.map((node) => {
