@@ -278,7 +278,7 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 overflow-hidden"
+            className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 max-h-96 overflow-y-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
             {/* Header */}
