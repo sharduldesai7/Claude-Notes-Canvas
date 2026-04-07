@@ -1,5 +1,5 @@
-import { Link, useLocation } from "wouter";
-import { Plus, Map as MapIcon, Trash2, Edit2, Check, X } from "lucide-react";
+import { useLocation } from "wouter";
+import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { useThoughtMaps, useCreateThoughtMap, useUpdateThoughtMap, useDeleteThoughtMap } from "@/hooks/use-thought-maps";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { SynapticaLogo } from "@/components/SynapticaLogo";
 
 export function MapSidebar() {
   const [location, setLocation] = useLocation();
@@ -21,7 +22,7 @@ export function MapSidebar() {
 
   const handleCreate = () => {
     createMap(
-      { data: { title: "Untitled Thought Map" } },
+      { data: { title: "Untitled Synaptica Map" } },
       { onSuccess: (data) => setLocation(`/m/${data.id}`) }
     );
   };
@@ -49,9 +50,9 @@ export function MapSidebar() {
       <div className="p-4 border-b border-border/50 flex items-center justify-between bg-sidebar/80 backdrop-blur">
         <h2 className="font-display font-bold text-lg text-foreground flex items-center gap-2">
           <div className="bg-primary/10 p-1.5 rounded-lg text-primary">
-            <MapIcon className="w-5 h-5" />
+            <SynapticaLogo size={20} />
           </div>
-          Thought Maps
+          Synaptica
         </h2>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -71,9 +72,9 @@ export function MapSidebar() {
         ) : maps?.length === 0 ? (
           <div className="text-center p-6 text-muted-foreground flex flex-col items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-              <MapIcon className="w-6 h-6 opacity-50" />
+              <SynapticaLogo size={24} className="opacity-50" />
             </div>
-            <p className="text-sm">No thought maps yet</p>
+            <p className="text-sm">No maps yet</p>
           </div>
         ) : (
           maps?.map((map) => {

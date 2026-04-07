@@ -27,7 +27,7 @@ export function ThoughtMapPage() {
   const { data: map, isLoading: isMapLoading, error } = useThoughtMap(mapId ? parseInt(mapId) : null);
 
   const handleCreateDefault = () => {
-    createMap({ data: { title: "My First Map" } }, {
+    createMap({ data: { title: "My First Synaptica Map" } }, {
       onSuccess: (data) => setLocation(`/m/${data.id}`)
     });
   };
@@ -47,7 +47,7 @@ export function ThoughtMapPage() {
         ) : error ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
             <h2 className="text-2xl font-bold text-destructive mb-2">Error loading map</h2>
-            <p className="text-muted-foreground">The thought map could not be found or you don't have access.</p>
+            <p className="text-muted-foreground">The map could not be found or you don't have access.</p>
             <Button variant="outline" className="mt-4" onClick={() => setLocation("/")}>Go Home</Button>
           </div>
         ) : !mapId && maps?.length === 0 ? (
