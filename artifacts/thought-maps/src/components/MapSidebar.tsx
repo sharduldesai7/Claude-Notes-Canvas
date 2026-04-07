@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import { Plus, Trash2, Edit2, Check, X, Settings, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { useThoughtMaps, useCreateThoughtMap, useUpdateThoughtMap, useDeleteThoughtMap } from "@/hooks/use-thought-maps";
@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SynapticaLogo } from "@/components/SynapticaLogo";
+import { useUser, useClerk } from "@clerk/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function MapSidebar() {
   const [location, setLocation] = useLocation();
@@ -16,6 +18,9 @@ export function MapSidebar() {
   const { mutate: createMap, isPending: isCreating } = useCreateThoughtMap();
   const { mutate: updateMap } = useUpdateThoughtMap();
   const { mutate: deleteMap } = useDeleteThoughtMap();
+
+  const { user } = useUser();
+  const { signOut } = useClerk();
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -39,7 +44,7 @@ export function MapSidebar() {
     if (confirm("Are you sure you want to delete this map?")) {
       deleteMap({ id }, {
         onSuccess: () => {
-          if (location === `/m/${id}`) setLocation("/");
+          if (location === `/m/${id}`) setLocation("/m");
         }
       });
     }
@@ -155,6 +160,36 @@ export function MapSidebar() {
             );
           })
         )}
+      </div>
+
+      <div className="p-3 border-t border-border/50 bg-sidebar/80 backdrop-blur flex items-center justify-between">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user?.imageUrl} />
+            <AvatarFallback>{user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress?.[0]}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 overflow-hidden">
+            <p className="text-sm font-medium truncate">{user?.fullName || user?.emailAddresses[0]?.emailAddress}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLocation('/settings')}>
+                <Settings className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => signOut()}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Sign Out</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );

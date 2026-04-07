@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ThoughtMap {
-  id: number;
+export interface UserSettings {
   userId: string;
-  title: string;
-  createdAt: Date;
+  preferredModel: string;
+  customApiKey?: string | null;
+  customBaseUrl?: string | null;
   updatedAt: Date;
 }

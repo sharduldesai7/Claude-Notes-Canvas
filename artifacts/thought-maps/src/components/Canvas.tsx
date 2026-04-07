@@ -57,7 +57,9 @@ export function Canvas({ map }: CanvasProps) {
   });
 
   const handleCanvasDoubleClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).id !== "canvas-bg") return;
+    // Don't create a node if the user double-clicked on an existing node card
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-node-card]')) return;
     
     const rect = containerRef.current!.getBoundingClientRect();
     const x = (e.clientX - rect.left - pan.x) / zoom;

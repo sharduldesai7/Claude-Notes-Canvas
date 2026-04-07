@@ -14,6 +14,7 @@ export interface Node {
   positionY: number;
   width: number;
   height: number;
+  color?: string | null;
   claudeResponse?: string | null;
   isProcessing: boolean;
   createdAt: Date;

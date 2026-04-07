@@ -1,14 +1,23 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, thoughtMapsTable, nodesTable, connectionsTable } from "@workspace/db";
+import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import Anthropic from "@anthropic-ai/sdk";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-// List all thought maps
-router.get("/", async (req, res) => {
+// All routes require authentication
+router.use(requireAuth);
+
+// List all thought maps for current user
+router.get("/", async (req: any, res) => {
   try {
-    const maps = await db.select().from(thoughtMapsTable).orderBy(thoughtMapsTable.createdAt);
+    const maps = await db
+      .select()
+      .from(thoughtMapsTable)
+      .where(eq(thoughtMapsTable.userId, req.userId))
+      .orderBy(thoughtMapsTable.createdAt);
     res.json(maps);
   } catch (err) {
     req.log.error(err);
@@ -17,14 +26,17 @@ router.get("/", async (req, res) => {
 });
 
 // Create a thought map
-router.post("/", async (req, res) => {
+router.post("/", async (req: any, res) => {
   try {
     const { title } = req.body;
     if (!title) {
       res.status(400).json({ error: "title is required" });
       return;
     }
-    const [map] = await db.insert(thoughtMapsTable).values({ title }).returning();
+    const [map] = await db
+      .insert(thoughtMapsTable)
+      .values({ title, userId: req.userId })
+      .returning();
     res.status(201).json(map);
   } catch (err) {
     req.log.error(err);
@@ -32,11 +44,14 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get a thought map with nodes and connections
-router.get("/:id", async (req, res) => {
+// Get a thought map with nodes and connections (only own maps)
+router.get("/:id", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [map] = await db.select().from(thoughtMapsTable).where(eq(thoughtMapsTable.id, id));
+    const [map] = await db
+      .select()
+      .from(thoughtMapsTable)
+      .where(and(eq(thoughtMapsTable.id, id), eq(thoughtMapsTable.userId, req.userId)));
     if (!map) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -51,14 +66,14 @@ router.get("/:id", async (req, res) => {
 });
 
 // Update a thought map
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const { title } = req.body;
     const [map] = await db
       .update(thoughtMapsTable)
       .set({ title, updatedAt: new Date() })
-      .where(eq(thoughtMapsTable.id, id))
+      .where(and(eq(thoughtMapsTable.id, id), eq(thoughtMapsTable.userId, req.userId)))
       .returning();
     if (!map) {
       res.status(404).json({ error: "Not found" });
@@ -72,10 +87,13 @@ router.patch("/:id", async (req, res) => {
 });
 
 // Delete a thought map
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [map] = await db.delete(thoughtMapsTable).where(eq(thoughtMapsTable.id, id)).returning();
+    const [map] = await db
+      .delete(thoughtMapsTable)
+      .where(and(eq(thoughtMapsTable.id, id), eq(thoughtMapsTable.userId, req.userId)))
+      .returning();
     if (!map) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -87,10 +105,23 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// Helper: verify map belongs to user
+async function verifyMapOwnership(mapId: number, userId: string): Promise<boolean> {
+  const [map] = await db
+    .select()
+    .from(thoughtMapsTable)
+    .where(and(eq(thoughtMapsTable.id, mapId), eq(thoughtMapsTable.userId, userId)));
+  return !!map;
+}
+
 // List nodes in a thought map
-router.get("/:mapId/nodes", async (req, res) => {
+router.get("/:mapId/nodes", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const nodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId)).orderBy(nodesTable.createdAt);
     res.json(nodes);
   } catch (err) {
@@ -99,15 +130,36 @@ router.get("/:mapId/nodes", async (req, res) => {
   }
 });
 
-// Create a node
-router.post("/:mapId/nodes", async (req, res) => {
+// Create a node — auto-connects to all existing nodes
+router.post("/:mapId/nodes", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
-    const { content = "", positionX = 100, positionY = 100, width = 280, height = 160 } = req.body;
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const { content = "", positionX = 100, positionY = 100, width = 280, height = 160, color } = req.body;
+
+    // Get all existing nodes before creating the new one
+    const existingNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
+
+    // Create the new node
     const [node] = await db
       .insert(nodesTable)
-      .values({ mapId, content, positionX, positionY, width, height })
+      .values({ mapId, content, positionX, positionY, width, height, color: color || null })
       .returning();
+
+    // Auto-connect new node to all existing nodes
+    if (existingNodes.length > 0) {
+      const connectionValues = existingNodes.map((existing) => ({
+        mapId,
+        fromNodeId: existing.id,
+        toNodeId: node.id,
+      }));
+      await db.insert(connectionsTable).values(connectionValues);
+    }
+
     res.status(201).json(node);
   } catch (err) {
     req.log.error(err);
@@ -116,10 +168,14 @@ router.post("/:mapId/nodes", async (req, res) => {
 });
 
 // Update a node
-router.patch("/:mapId/nodes/:nodeId", async (req, res) => {
+router.patch("/:mapId/nodes/:nodeId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const updates = req.body;
     const [node] = await db
       .update(nodesTable)
@@ -138,10 +194,14 @@ router.patch("/:mapId/nodes/:nodeId", async (req, res) => {
 });
 
 // Delete a node
-router.delete("/:mapId/nodes/:nodeId", async (req, res) => {
+router.delete("/:mapId/nodes/:nodeId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const [node] = await db
       .delete(nodesTable)
       .where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)))
@@ -158,9 +218,13 @@ router.delete("/:mapId/nodes/:nodeId", async (req, res) => {
 });
 
 // List connections in a thought map
-router.get("/:mapId/connections", async (req, res) => {
+router.get("/:mapId/connections", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const connections = await db.select().from(connectionsTable).where(eq(connectionsTable.mapId, mapId));
     res.json(connections);
   } catch (err) {
@@ -170,9 +234,13 @@ router.get("/:mapId/connections", async (req, res) => {
 });
 
 // Create a connection
-router.post("/:mapId/connections", async (req, res) => {
+router.post("/:mapId/connections", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const { fromNodeId, toNodeId } = req.body;
     if (!fromNodeId || !toNodeId) {
       res.status(400).json({ error: "fromNodeId and toNodeId are required" });
@@ -190,10 +258,14 @@ router.post("/:mapId/connections", async (req, res) => {
 });
 
 // Delete a connection
-router.delete("/:mapId/connections/:connectionId", async (req, res) => {
+router.delete("/:mapId/connections/:connectionId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const connectionId = parseInt(req.params.connectionId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     const [conn] = await db
       .delete(connectionsTable)
       .where(and(eq(connectionsTable.id, connectionId), eq(connectionsTable.mapId, mapId)))
@@ -209,8 +281,8 @@ router.delete("/:mapId/connections/:connectionId", async (req, res) => {
   }
 });
 
-// Ask Claude — SSE streaming
-router.post("/:mapId/nodes/:nodeId/ask-claude", async (req, res) => {
+// Ask Claude — SSE streaming with user's preferred model
+router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
@@ -221,20 +293,30 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req, res) => {
       return;
     }
 
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    // Load user settings for preferred model / custom API key
+    let [userSettings] = await db
+      .select()
+      .from(userSettingsTable)
+      .where(eq(userSettingsTable.userId, req.userId));
+    
+    const preferredModel = userSettings?.preferredModel || "claude-sonnet-4-6";
+    const customApiKey = userSettings?.customApiKey;
+    const customBaseUrl = userSettings?.customBaseUrl;
+
     // Build context from referenced nodes
     let contextMessages: string[] = [];
     if (contextNodeIds && contextNodeIds.length > 0) {
-      const contextNodes = await db
-        .select()
-        .from(nodesTable)
-        .where(eq(nodesTable.mapId, mapId));
+      const contextNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
       const referenced = contextNodes.filter((n) => contextNodeIds.includes(n.id));
       if (referenced.length > 0) {
         contextMessages = referenced.map((n) => {
           let ctx = `Note content: ${n.content}`;
-          if (n.claudeResponse) {
-            ctx += `\nClaude's previous response: ${n.claudeResponse}`;
-          }
+          if (n.claudeResponse) ctx += `\nClaude's previous response: ${n.claudeResponse}`;
           return ctx;
         });
       }
@@ -253,13 +335,24 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no");
 
     const systemPrompt = contextMessages.length > 0
-      ? `You are a helpful assistant in a mind-mapping and note-taking app called Thought Maps. The user is working on interconnected notes. Here is context from related notes:\n\n${contextMessages.join("\n\n---\n\n")}`
-      : "You are a helpful assistant in a mind-mapping and note-taking app called Thought Maps. Help the user think through their ideas clearly and concisely.";
+      ? `You are a helpful assistant in a mind-mapping app called Synaptica. Context from related notes:\n\n${contextMessages.join("\n\n---\n\n")}`
+      : "You are a helpful assistant in a mind-mapping app called Synaptica. Help the user think through their ideas clearly and concisely.";
 
     let fullResponse = "";
 
-    const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
+    // Use custom API key if user has provided one, otherwise use default
+    let client = anthropic;
+    if (customApiKey && customApiKey.trim()) {
+      const opts: { apiKey: string; baseURL?: string } = { apiKey: customApiKey };
+      if (customBaseUrl) opts.baseURL = customBaseUrl;
+      client = new Anthropic(opts) as any;
+    }
+
+    // Determine model — validate it's a supported model if using defaults
+    const model = preferredModel || "claude-sonnet-4-6";
+
+    const stream = (client as any).messages.stream({
+      model,
       max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }],
@@ -272,7 +365,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req, res) => {
       }
     }
 
-    // Save the full response and clear processing flag
+    // Save the full response
     await db
       .update(nodesTable)
       .set({ claudeResponse: fullResponse, isProcessing: false, updatedAt: new Date() })

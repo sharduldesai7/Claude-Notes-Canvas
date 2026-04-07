@@ -12,6 +12,7 @@ export interface UpdateNodeBody {
   positionY?: number;
   width?: number;
   height?: number;
+  color?: string | null;
   claudeResponse?: string | null;
   isProcessing?: boolean;
 }

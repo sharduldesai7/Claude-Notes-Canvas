@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
-import { GripHorizontal, X, Sparkles, Loader2 } from "lucide-react";
+import { GripHorizontal, X, Sparkles, Loader2, Palette } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUpdateNode, useDeleteNode } from "@/hooks/use-nodes";
 import { useAskClaudeStream } from "@/hooks/use-ask-claude";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface NodeCardProps {
   node: Node;
@@ -17,10 +18,22 @@ interface NodeCardProps {
 
 const CARD_WIDTH = 280;
 
+const COLORS = [
+  { name: 'white', value: '#FFFFFF' },
+  { name: 'yellow', value: '#FFF9C4' },
+  { name: 'pink', value: '#FCE4EC' },
+  { name: 'blue', value: '#E3F2FD' },
+  { name: 'green', value: '#E8F5E9' },
+  { name: 'orange', value: '#FFF3E0' },
+  { name: 'purple', value: '#EDE7F6' },
+  { name: 'grey', value: '#F5F5F5' },
+];
+
 export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
   const [claudeText, setClaudeText] = useState(node.claudeResponse || "");
+  const [cardColor, setCardColor] = useState(node.color || '#FFFFFF');
   
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
@@ -37,7 +50,10 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
   useEffect(() => {
     setContent(node.content);
     setClaudeText(node.claudeResponse || "");
-  }, [node.content, node.claudeResponse]);
+    if (node.color) {
+      setCardColor(node.color);
+    }
+  }, [node.content, node.claudeResponse, node.color]);
 
   const autoResize = () => {
     if (textareaRef.current) {
@@ -71,6 +87,11 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
     }
   };
 
+  const handleColorChange = (color: string) => {
+    setCardColor(color);
+    updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
+  };
+
   const handleAskClaude = async () => {
     if (!content.trim()) return;
     
@@ -96,11 +117,13 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="absolute bg-card rounded-2xl shadow-lg border border-border/50 flex flex-col group hover:shadow-xl transition-shadow"
+      data-node-card="true"
+      className="absolute rounded-2xl shadow-lg border border-border/50 flex flex-col group hover:shadow-xl transition-shadow"
       style={{
         width: CARD_WIDTH,
         x: pos.x,
         y: pos.y,
+        backgroundColor: cardColor === '#FFFFFF' ? 'hsl(var(--card))' : cardColor,
         touchAction: 'none'
       }}
     >
@@ -120,9 +143,36 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
       {/* Drag Handle Area */}
       <div 
         {...bindDrag()}
-        className="h-8 bg-muted/40 rounded-t-2xl border-b border-border/30 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-muted/60 transition-colors"
+        className="h-8 bg-black/5 rounded-t-2xl border-b border-black/10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-black/10 transition-colors relative"
       >
-        <GripHorizontal className="w-5 h-5 text-muted-foreground/40" />
+        <GripHorizontal className="w-5 h-5 text-foreground/40" />
+        
+        {/* Color picker */}
+        <div className="absolute left-2" onPointerDown={(e) => e.stopPropagation()}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="w-5 h-5 rounded-full hover:bg-black/10" style={{ backgroundColor: cardColor === '#FFFFFF' ? 'transparent' : cardColor }}>
+                {cardColor === '#FFFFFF' && <Palette className="w-3 h-3 text-foreground/50" />}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <div className="grid grid-cols-4 gap-2">
+                {COLORS.map((color) => (
+                  <button
+                    key={color.name}
+                    className={cn(
+                      "w-6 h-6 rounded-full border border-black/10 hover:scale-110 transition-transform",
+                      cardColor === color.value && "ring-2 ring-primary ring-offset-1"
+                    )}
+                    style={{ backgroundColor: color.value }}
+                    onClick={() => handleColorChange(color.value)}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Content Area */}
@@ -133,7 +183,7 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
           onChange={(e) => setContent(e.target.value)}
           onBlur={handleContentBlur}
           onPointerDown={(e) => e.stopPropagation()}
-          className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-muted-foreground/60 font-serif leading-relaxed"
+          className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
           placeholder="Jot down a thought..."
         />
 
@@ -164,15 +214,15 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="border-t border-accent/20 bg-gradient-to-b from-accent/5 to-transparent rounded-b-2xl p-5 relative"
+            className="border-t border-black/10 bg-black/5 rounded-b-2xl p-5 relative"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="absolute top-0 right-0 p-2">
-               <Sparkles className="w-4 h-4 text-accent/40" />
+               <Sparkles className="w-4 h-4 text-foreground/40" />
             </div>
             
             {isGenerating && claudeText.length === 0 ? (
-              <div className="flex items-center gap-2 text-accent text-sm font-medium py-2">
+              <div className="flex items-center gap-2 text-foreground/80 text-sm font-medium py-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Thinking...
               </div>

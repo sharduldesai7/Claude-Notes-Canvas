@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const thoughtMapsTable = pgTable("thought_maps", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("anonymous"),
   title: text("title").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -21,6 +22,7 @@ export const nodesTable = pgTable("nodes", {
   positionY: real("position_y").notNull().default(100),
   width: real("width").notNull().default(280),
   height: real("height").notNull().default(160),
+  color: text("color"),
   claudeResponse: text("claude_response"),
   isProcessing: boolean("is_processing").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -42,3 +44,15 @@ export const connectionsTable = pgTable("connections", {
 export const insertConnectionSchema = createInsertSchema(connectionsTable).omit({ id: true, createdAt: true });
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 export type Connection = typeof connectionsTable.$inferSelect;
+
+export const userSettingsTable = pgTable("user_settings", {
+  userId: text("user_id").primaryKey(),
+  preferredModel: text("preferred_model").notNull().default("claude-sonnet-4-6"),
+  customApiKey: text("custom_api_key"),
+  customBaseUrl: text("custom_base_url"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertUserSettingsSchema = createInsertSchema(userSettingsTable).omit({ updatedAt: true });
+export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+export type UserSettings = typeof userSettingsTable.$inferSelect;

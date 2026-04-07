@@ -12,4 +12,5 @@ export interface CreateNodeBody {
   positionY: number;
   width?: number;
   height?: number;
+  color?: string | null;
 }

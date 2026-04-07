@@ -11,8 +11,8 @@ tags:
     description: Health operations
   - name: thought-maps
     description: Thought Maps operations
-  - name: anthropic
-    description: Anthropic AI chat operations
+  - name: user
+    description: User settings operations
 paths:
   /healthz:
     get:
@@ -32,7 +32,7 @@ paths:
     get:
       operationId: listThoughtMaps
       tags: [thought-maps]
-      summary: List all thought maps
+      summary: List all thought maps for the current user
       responses:
         "200":
           description: List of thought maps
@@ -165,7 +165,7 @@ paths:
               $ref: "#/components/schemas/CreateNodeBody"
       responses:
         "201":
-          description: Created node
+          description: Created node with auto-connections
           content:
             application/json:
               schema:
@@ -311,6 +311,36 @@ paths:
           content:
             text/event-stream: {}
 
+  /user/settings:
+    get:
+      operationId: getUserSettings
+      tags: [user]
+      summary: Get the current user's settings
+      responses:
+        "200":
+          description: User settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+    put:
+      operationId: updateUserSettings
+      tags: [user]
+      summary: Update user settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserSettingsBody"
+      responses:
+        "200":
+          description: Updated user settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+
 components:
   schemas:
     HealthStatus:
@@ -326,6 +356,8 @@ components:
       properties:
         id:
           type: integer
+        userId:
+          type: string
         title:
           type: string
         createdAt:
@@ -336,6 +368,7 @@ components:
           format: date-time
       required:
         - id
+        - userId
         - title
         - createdAt
         - updatedAt
@@ -345,6 +378,8 @@ components:
       properties:
         id:
           type: integer
+        userId:
+          type: string
         title:
           type: string
         createdAt:
@@ -363,6 +398,7 @@ components:
             $ref: "#/components/schemas/Connection"
       required:
         - id
+        - userId
         - title
         - createdAt
         - updatedAt
@@ -386,6 +422,9 @@ components:
           type: number
         height:
           type: number
+        color:
+          type: string
+          nullable: true
         claudeResponse:
           type: string
           nullable: true
@@ -430,6 +469,27 @@ components:
         - toNodeId
         - createdAt
 
+    UserSettings:
+      type: object
+      properties:
+        userId:
+          type: string
+        preferredModel:
+          type: string
+        customApiKey:
+          type: string
+          nullable: true
+        customBaseUrl:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - preferredModel
+        - updatedAt
+
     CreateThoughtMapBody:
       type: object
       properties:
@@ -457,6 +517,9 @@ components:
           type: number
         height:
           type: number
+        color:
+          type: string
+          nullable: true
       required:
         - content
         - positionX
@@ -475,6 +538,9 @@ components:
           type: number
         height:
           type: number
+        color:
+          type: string
+          nullable: true
         claudeResponse:
           type: string
           nullable: true
@@ -503,6 +569,18 @@ components:
             type: integer
       required:
         - prompt
+
+    UpdateUserSettingsBody:
+      type: object
+      properties:
+        preferredModel:
+          type: string
+        customApiKey:
+          type: string
+          nullable: true
+        customBaseUrl:
+          type: string
+          nullable: true
 
     ApiError:
       type: object

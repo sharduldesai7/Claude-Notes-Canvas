@@ -10,6 +10,7 @@ import type { Node } from "./node";
 
 export interface ThoughtMapFull {
   id: number;
+  userId: string;
   title: string;
   createdAt: Date;
   updatedAt: Date;

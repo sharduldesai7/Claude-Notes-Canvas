@@ -11,6 +11,7 @@ export interface HealthStatus {
 
 export interface ThoughtMap {
   id: number;
+  userId: string;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -24,6 +25,7 @@ export interface Node {
   positionY: number;
   width: number;
   height: number;
+  color?: string | null;
   claudeResponse?: string | null;
   isProcessing: boolean;
   createdAt: string;
@@ -40,11 +42,20 @@ export interface Connection {
 
 export interface ThoughtMapFull {
   id: number;
+  userId: string;
   title: string;
   createdAt: string;
   updatedAt: string;
   nodes: Node[];
   connections: Connection[];
+}
+
+export interface UserSettings {
+  userId: string;
+  preferredModel: string;
+  customApiKey?: string | null;
+  customBaseUrl?: string | null;
+  updatedAt: string;
 }
 
 export interface CreateThoughtMapBody {
@@ -61,6 +72,7 @@ export interface CreateNodeBody {
   positionY: number;
   width?: number;
   height?: number;
+  color?: string | null;
 }
 
 export interface UpdateNodeBody {
@@ -69,6 +81,7 @@ export interface UpdateNodeBody {
   positionY?: number;
   width?: number;
   height?: number;
+  color?: string | null;
   claudeResponse?: string | null;
   isProcessing?: boolean;
 }
@@ -81,6 +94,12 @@ export interface CreateConnectionBody {
 export interface AskClaudeBody {
   prompt: string;
   contextNodeIds?: number[];
+}
+
+export interface UpdateUserSettingsBody {
+  preferredModel?: string;
+  customApiKey?: string | null;
+  customBaseUrl?: string | null;
 }
 
 export interface ApiError {

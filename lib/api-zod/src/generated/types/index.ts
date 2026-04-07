@@ -18,3 +18,5 @@ export * from "./thoughtMap";
 export * from "./thoughtMapFull";
 export * from "./updateNodeBody";
 export * from "./updateThoughtMapBody";
+export * from "./updateUserSettingsBody";
+export * from "./userSettings";

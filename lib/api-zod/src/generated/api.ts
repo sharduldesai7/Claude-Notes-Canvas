@@ -16,10 +16,11 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary List all thought maps
+ * @summary List all thought maps for the current user
  */
 export const ListThoughtMapsResponseItem = zod.object({
   id: zod.number(),
+  userId: zod.string(),
   title: zod.string(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -42,6 +43,7 @@ export const GetThoughtMapParams = zod.object({
 
 export const GetThoughtMapResponse = zod.object({
   id: zod.number(),
+  userId: zod.string(),
   title: zod.string(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -54,6 +56,7 @@ export const GetThoughtMapResponse = zod.object({
       positionY: zod.number(),
       width: zod.number(),
       height: zod.number(),
+      color: zod.string().nullish(),
       claudeResponse: zod.string().nullish(),
       isProcessing: zod.boolean(),
       createdAt: zod.date(),
@@ -84,6 +87,7 @@ export const UpdateThoughtMapBody = zod.object({
 
 export const UpdateThoughtMapResponse = zod.object({
   id: zod.number(),
+  userId: zod.string(),
   title: zod.string(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -111,6 +115,7 @@ export const ListNodesResponseItem = zod.object({
   positionY: zod.number(),
   width: zod.number(),
   height: zod.number(),
+  color: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean(),
   createdAt: zod.date(),
@@ -131,6 +136,7 @@ export const CreateNodeBody = zod.object({
   positionY: zod.number(),
   width: zod.number().optional(),
   height: zod.number().optional(),
+  color: zod.string().nullish(),
 });
 
 /**
@@ -147,6 +153,7 @@ export const UpdateNodeBody = zod.object({
   positionY: zod.number().optional(),
   width: zod.number().optional(),
   height: zod.number().optional(),
+  color: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean().optional(),
 });
@@ -159,6 +166,7 @@ export const UpdateNodeResponse = zod.object({
   positionY: zod.number(),
   width: zod.number(),
   height: zod.number(),
+  color: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean(),
   createdAt: zod.date(),
@@ -220,4 +228,32 @@ export const AskClaudeParams = zod.object({
 export const AskClaudeBody = zod.object({
   prompt: zod.string(),
   contextNodeIds: zod.array(zod.number()).optional(),
+});
+
+/**
+ * @summary Get the current user's settings
+ */
+export const GetUserSettingsResponse = zod.object({
+  userId: zod.string(),
+  preferredModel: zod.string(),
+  customApiKey: zod.string().nullish(),
+  customBaseUrl: zod.string().nullish(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Update user settings
+ */
+export const UpdateUserSettingsBody = zod.object({
+  preferredModel: zod.string().optional(),
+  customApiKey: zod.string().nullish(),
+  customBaseUrl: zod.string().nullish(),
+});
+
+export const UpdateUserSettingsResponse = zod.object({
+  userId: zod.string(),
+  preferredModel: zod.string(),
+  customApiKey: zod.string().nullish(),
+  customBaseUrl: zod.string().nullish(),
+  updatedAt: zod.date(),
 });
