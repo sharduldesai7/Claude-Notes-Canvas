@@ -15,6 +15,11 @@ interface NodeCardProps {
   otherNodeIds: number[];
 }
 
+interface ClaudeEntry {
+  question: string;
+  answer: string;
+}
+
 const MIN_WIDTH = 220;
 const DEFAULT_WIDTH = 280;
 
@@ -29,13 +34,33 @@ const COLORS = [
   { name: 'grey', value: '#F5F5F5' },
 ];
 
+/** Parse stored claudeResponse — supports both legacy plain strings and new JSON arrays */
+function parseHistory(raw: string | null | undefined): ClaudeEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as ClaudeEntry[];
+    return [{ question: '', answer: String(raw) }];
+  } catch {
+    return [{ question: '', answer: raw }];
+  }
+}
+
 export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
-  const [claudeText, setClaudeText] = useState(node.claudeResponse || "");
+
+  // Chat history — initialized once from server, then managed locally.
+  // We do NOT re-sync from node.claudeResponse after mount to avoid a race condition
+  // where the server refetch (triggered by updateNode) overwrites our freshly-appended entry.
+  const [history, setHistory] = useState<ClaudeEntry[]>(() => parseHistory(node.claudeResponse));
+  const lastSeenNodeId = useRef(node.id);
+
+  // In-progress streaming text for the current generation
+  const [streamingText, setStreamingText] = useState("");
+
   const [cardColor, setCardColor] = useState(node.color || '#FFFFFF');
   const [cardWidth, setCardWidth] = useState(node.width || DEFAULT_WIDTH);
-  // Keep a ref so useDrag memo captures the initial width per gesture
   const cardWidthRef = useRef(cardWidth);
 
   const { mutate: updateNode } = useUpdateNode();
@@ -43,6 +68,7 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   const { generate, isGenerating } = useAskClaudeStream();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setPos({ x: node.positionX, y: node.positionY });
@@ -50,13 +76,23 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
 
   useEffect(() => {
     setContent(node.content);
-    setClaudeText(node.claudeResponse || "");
     if (node.color) setCardColor(node.color);
     if (node.width) {
       setCardWidth(node.width);
       cardWidthRef.current = node.width;
     }
-  }, [node.content, node.claudeResponse, node.color, node.width]);
+    // Re-initialize history only when this card's node changes (e.g. map switch)
+    // — NOT on every server refetch, which would wipe locally-accumulated entries.
+    if (lastSeenNodeId.current !== node.id) {
+      setHistory(parseHistory(node.claudeResponse));
+      lastSeenNodeId.current = node.id;
+    }
+  }, [node.id, node.content, node.claudeResponse, node.color, node.width]);
+
+  // Scroll chat end into view after each new entry or streaming chunk
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [history, streamingText]);
 
   const autoResize = () => {
     if (textareaRef.current) {
@@ -80,7 +116,6 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   });
 
   // ── Resize via native mouse events ────────────────────────────────────
-  // Native mouse handlers work reliably without pointer-capture conflicts with the canvas pan.
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -120,20 +155,28 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
   };
 
-  // ── Claude invocation ─────────────────────────────────────────────────
-  const handleAskClaude = async (prompt: string) => {
+  // ── Claude invocation — appends to history, never wipes previous ──────
+  const handleAskClaude = async (question: string) => {
     let accumulated = "";
-    setClaudeText("");
-    await generate(node.mapId, node.id, prompt, (chunk) => {
+    setStreamingText("");
+
+    await generate(node.mapId, node.id, question, (chunk) => {
       accumulated += chunk;
-      setClaudeText(accumulated);
+      setStreamingText(accumulated);
     }, otherNodeIds);
 
-    updateNode({
-      mapId: node.mapId,
-      nodeId: node.id,
-      data: { claudeResponse: accumulated, isProcessing: false },
+    const newEntry: ClaudeEntry = { question, answer: accumulated };
+    setHistory((prev) => {
+      const updated = [...prev, newEntry];
+      // Persist the full history as JSON
+      updateNode({
+        mapId: node.mapId,
+        nodeId: node.id,
+        data: { claudeResponse: JSON.stringify(updated), isProcessing: false },
+      });
+      return updated;
     });
+    setStreamingText("");
   };
 
   // Enter (not Shift+Enter) on a line starting with /claude → invoke Claude
@@ -143,17 +186,17 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
       const lastLine = lines[lines.length - 1];
       if (lastLine.toLowerCase().startsWith('/claude')) {
         e.preventDefault();
-        const prompt = lastLine.replace(/^\/claude\s*/i, '').trim();
-        if (!prompt) return;
+        const question = lastLine.replace(/^\/claude\s*/i, '').trim();
+        if (!question) return;
         const newContent = lines.slice(0, -1).join('\n');
         setContent(newContent);
         updateNode({ mapId: node.mapId, nodeId: node.id, data: { content: newContent } });
-        handleAskClaude(prompt);
+        handleAskClaude(question);
       }
     }
   };
 
-  const showClaudeBox = claudeText.length > 0 || isGenerating;
+  const showChatSection = history.length > 0 || isGenerating;
 
   return (
     <motion.div
@@ -228,33 +271,64 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         )}
       </div>
 
-      {/* ── Claude response (above textarea) ──────────────────────── */}
+      {/* ── Chat history (grows downward, no max-height cap) ─────────────── */}
       <AnimatePresence>
-        {showClaudeBox && (
+        {showChatSection && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-b border-black/10 bg-black/5 px-5 py-4 relative overflow-hidden"
+            className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 overflow-hidden"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-1.5 mb-2">
+            {/* Header */}
+            <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-primary/70" />
               <span className="text-xs font-semibold text-primary/70 uppercase tracking-wide">Claude</span>
             </div>
 
-            {isGenerating && claudeText.length === 0 ? (
-              <div className="flex items-center gap-2 text-foreground/70 text-sm">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Thinking…
+            {/* All previous Q&A entries */}
+            {history.map((entry, i) => (
+              <div key={i} className="flex flex-col gap-1.5">
+                {entry.question && (
+                  <p className="text-xs text-foreground/50 font-medium italic">
+                    {entry.question}
+                  </p>
+                )}
+                <div className="text-sm text-foreground/90 font-serif leading-relaxed">
+                  {entry.answer.split('\n').map((line, j) => (
+                    <p key={j} className="min-h-[1em]">{line}</p>
+                  ))}
+                </div>
+                {/* Separator between entries (not after the last one) */}
+                {i < history.length - 1 && (
+                  <hr className="border-black/10 mt-1" />
+                )}
               </div>
-            ) : (
-              <div className="text-sm text-foreground/90 font-serif leading-relaxed max-h-64 overflow-y-auto">
-                {claudeText.split('\n').map((line, i) => (
-                  <p key={i} className="min-h-[1em]">{line}</p>
-                ))}
+            ))}
+
+            {/* Currently streaming response */}
+            {isGenerating && (
+              <div className="flex flex-col gap-1.5">
+                {/* Show separator if there are previous entries */}
+                {history.length > 0 && <hr className="border-black/10" />}
+                {streamingText.length === 0 ? (
+                  <div className="flex items-center gap-2 text-foreground/50 text-sm">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Thinking…</span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-foreground/90 font-serif leading-relaxed">
+                    {streamingText.split('\n').map((line, j) => (
+                      <p key={j} className="min-h-[1em]">{line}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Scroll anchor */}
+            <div ref={chatEndRef} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -269,8 +343,8 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
           onKeyDown={handleKeyDown}
           onPointerDown={(e) => e.stopPropagation()}
           className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
-          placeholder={showClaudeBox
-            ? "Continue writing below Claude's response…"
+          placeholder={showChatSection
+            ? "Continue writing, or /claude <question> + Enter to ask again…"
             : "Jot a thought… or type /claude <question> and press Enter"
           }
         />
