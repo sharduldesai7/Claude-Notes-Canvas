@@ -11,7 +11,7 @@ export function useCreateNode() {
   return useGeneratedCreateNode({
     mutation: {
       onSuccess: (_, variables) => {
-        queryClient.invalidateQueries({ queryKey: getGetThoughtMapQueryKey(variables.mapId) });
+        queryClient.refetchQueries({ queryKey: getGetThoughtMapQueryKey(variables.mapId) });
       }
     }
   });

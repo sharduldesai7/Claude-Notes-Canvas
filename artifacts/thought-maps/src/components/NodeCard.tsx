@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
-import { GripHorizontal, X, Sparkles, Loader2, Palette } from "lucide-react";
+import { GripHorizontal, X, Sparkles, Loader2, Palette, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUpdateNode, useDeleteNode } from "@/hooks/use-nodes";
 import { useAskClaudeStream } from "@/hooks/use-ask-claude";
@@ -11,12 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 interface NodeCardProps {
   node: Node;
-  onConnectionStart: (nodeId: number, x: number, y: number) => void;
-  onConnectionEnd: (nodeId: number) => void;
   zoom: number;
 }
 
-const CARD_WIDTH = 280;
+const MIN_WIDTH = 220;
+const DEFAULT_WIDTH = 280;
 
 const COLORS = [
   { name: 'white', value: '#FFFFFF' },
@@ -29,31 +28,29 @@ const COLORS = [
   { name: 'grey', value: '#F5F5F5' },
 ];
 
-export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: NodeCardProps) {
+export function NodeCard({ node, zoom }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
   const [claudeText, setClaudeText] = useState(node.claudeResponse || "");
   const [cardColor, setCardColor] = useState(node.color || '#FFFFFF');
-  
+  const [cardWidth, setCardWidth] = useState(node.width || DEFAULT_WIDTH);
+
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
   const { generate, isGenerating } = useAskClaudeStream();
-  
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync external position changes
   useEffect(() => {
     setPos({ x: node.positionX, y: node.positionY });
   }, [node.positionX, node.positionY]);
 
-  // Sync external content changes
   useEffect(() => {
     setContent(node.content);
     setClaudeText(node.claudeResponse || "");
-    if (node.color) {
-      setCardColor(node.color);
-    }
-  }, [node.content, node.claudeResponse, node.color]);
+    if (node.color) setCardColor(node.color);
+    if (node.width) setCardWidth(node.width);
+  }, [node.content, node.claudeResponse, node.color, node.width]);
 
   const autoResize = () => {
     if (textareaRef.current) {
@@ -62,19 +59,13 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
     }
   };
 
-  useEffect(() => {
-    autoResize();
-  }, [content]);
+  useEffect(() => { autoResize(); }, [content]);
 
   const bindDrag = useDrag(({ offset: [ox, oy], last, event }) => {
     event.stopPropagation();
     setPos({ x: ox, y: oy });
     if (last) {
-      updateNode({ 
-        mapId: node.mapId, 
-        nodeId: node.id, 
-        data: { positionX: ox, positionY: oy } 
-      });
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { positionX: ox, positionY: oy } });
     }
   }, {
     from: () => [pos.x, pos.y],
@@ -92,25 +83,62 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
   };
 
-  const handleAskClaude = async () => {
-    if (!content.trim()) return;
-    
+  const handleAskClaude = async (prompt: string) => {
     let accumulated = "";
     setClaudeText("");
-    
-    await generate(node.mapId, node.id, content, (chunk) => {
+
+    await generate(node.mapId, node.id, prompt, (chunk) => {
       accumulated += chunk;
       setClaudeText(accumulated);
     });
-    
-    updateNode({ 
-      mapId: node.mapId, 
-      nodeId: node.id, 
-      data: { claudeResponse: accumulated, isProcessing: false } 
+
+    updateNode({
+      mapId: node.mapId,
+      nodeId: node.id,
+      data: { claudeResponse: accumulated, isProcessing: false },
     });
   };
 
-  const hasClaudeTrigger = content.toLowerCase().includes('/claude');
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const lines = content.split('\n');
+      const lastLine = lines[lines.length - 1];
+      if (lastLine.toLowerCase().startsWith('/claude')) {
+        e.preventDefault();
+        const prompt = lastLine.replace(/^\/claude\s*/i, '').trim();
+        if (!prompt) return;
+        const newContent = lines.slice(0, -1).join('\n');
+        setContent(newContent);
+        updateNode({ mapId: node.mapId, nodeId: node.id, data: { content: newContent } });
+        handleAskClaude(prompt);
+      }
+    }
+  };
+
+  const handleResizePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = cardWidth;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) / zoom;
+      setCardWidth(Math.max(MIN_WIDTH, startWidth + dx));
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      const dx = (ev.clientX - startX) / zoom;
+      const finalWidth = Math.max(MIN_WIDTH, startWidth + dx);
+      setCardWidth(finalWidth);
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { width: Math.round(finalWidth) } });
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  };
+
   const showClaudeBox = claudeText.length > 0 || isGenerating;
 
   return (
@@ -120,14 +148,14 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
       data-node-card="true"
       className="absolute rounded-2xl shadow-lg border border-border/50 flex flex-col group hover:shadow-xl transition-shadow"
       style={{
-        width: CARD_WIDTH,
+        width: cardWidth,
         x: pos.x,
         y: pos.y,
         backgroundColor: cardColor === '#FFFFFF' ? 'hsl(var(--card))' : cardColor,
-        touchAction: 'none'
+        touchAction: 'none',
       }}
     >
-      {/* Delete button (shows on hover) */}
+      {/* Delete button */}
       <Button
         variant="destructive"
         size="icon"
@@ -140,18 +168,23 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
         <X className="w-3.5 h-3.5" />
       </Button>
 
-      {/* Drag Handle Area */}
-      <div 
+      {/* Drag Handle */}
+      <div
         {...bindDrag()}
         className="h-8 bg-black/5 rounded-t-2xl border-b border-black/10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-black/10 transition-colors relative"
       >
         <GripHorizontal className="w-5 h-5 text-foreground/40" />
-        
+
         {/* Color picker */}
         <div className="absolute left-2" onPointerDown={(e) => e.stopPropagation()}>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-5 h-5 rounded-full hover:bg-black/10" style={{ backgroundColor: cardColor === '#FFFFFF' ? 'transparent' : cardColor }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-5 h-5 rounded-full hover:bg-black/10"
+                style={{ backgroundColor: cardColor === '#FFFFFF' ? 'transparent' : cardColor }}
+              >
                 {cardColor === '#FFFFFF' && <Palette className="w-3 h-3 text-foreground/50" />}
               </Button>
             </PopoverTrigger>
@@ -173,61 +206,37 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
             </PopoverContent>
           </Popover>
         </div>
+
+        {/* Sparkle icon when generating */}
+        {isGenerating && (
+          <div className="absolute right-2">
+            <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
+          </div>
+        )}
       </div>
 
-      {/* Content Area */}
-      <div className="p-5 flex flex-col gap-3 relative">
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onBlur={handleContentBlur}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
-          placeholder="Jot down a thought..."
-        />
-
-        <AnimatePresence>
-          {hasClaudeTrigger && !showClaudeBox && !isGenerating && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="flex justify-end mt-1"
-            >
-              <Button 
-                size="sm" 
-                className="bg-accent hover:bg-accent/90 text-white rounded-full shadow-md px-4 py-1.5 h-auto text-xs font-semibold flex items-center gap-1.5"
-                onClick={handleAskClaude}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Ask Claude
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* AI Response Area */}
+      {/* Claude Response Area — shown ABOVE the textarea so user can write below */}
       <AnimatePresence>
         {showClaudeBox && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="border-t border-black/10 bg-black/5 rounded-b-2xl p-5 relative"
+            exit={{ opacity: 0, height: 0 }}
+            className="border-b border-black/10 bg-black/5 px-5 py-4 relative overflow-hidden"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="absolute top-0 right-0 p-2">
-               <Sparkles className="w-4 h-4 text-foreground/40" />
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-primary/70" />
+              <span className="text-xs font-semibold text-primary/70 uppercase tracking-wide">Claude</span>
             </div>
-            
+
             {isGenerating && claudeText.length === 0 ? (
-              <div className="flex items-center gap-2 text-foreground/80 text-sm font-medium py-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Thinking...
+              <div className="flex items-center gap-2 text-foreground/70 text-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Thinking…
               </div>
             ) : (
-              <div className="prose prose-sm prose-p:leading-relaxed prose-p:my-1 text-foreground/90 font-serif">
+              <div className="prose prose-sm prose-p:leading-relaxed prose-p:my-1 text-foreground/90 font-serif max-h-64 overflow-y-auto">
                 {claudeText.split('\n').map((line, i) => (
                   <p key={i} className="min-h-[1em]">{line}</p>
                 ))}
@@ -237,33 +246,27 @@ export function NodeCard({ node, onConnectionStart, onConnectionEnd, zoom }: Nod
         )}
       </AnimatePresence>
 
-      {/* Connection Handles */}
-      <div 
-        className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-6 h-6 bg-card border-2 border-primary rounded-full cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center shadow-sm z-10"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          onConnectionStart(node.id, pos.x, pos.y + 50); // approx middle
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation();
-          onConnectionEnd(node.id);
-        }}
-      >
-        <div className="w-2 h-2 bg-primary rounded-full" />
+      {/* Note textarea — always at bottom so user can keep writing below Claude's response */}
+      <div className="p-5 flex flex-col gap-2">
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onBlur={handleContentBlur}
+          onKeyDown={handleKeyDown}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
+          placeholder={showClaudeBox ? "Continue writing…" : "Jot down a thought… or type /claude <question> and press Enter"}
+        />
       </div>
 
-      <div 
-        className="absolute right-[-12px] top-1/2 -translate-y-1/2 w-6 h-6 bg-card border-2 border-primary rounded-full cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center shadow-sm z-10"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          onConnectionStart(node.id, pos.x + CARD_WIDTH, pos.y + 50);
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation();
-          onConnectionEnd(node.id);
-        }}
+      {/* Resize handle — bottom-right corner */}
+      <div
+        className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center cursor-se-resize opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+        onPointerDown={handleResizePointerDown}
+        title="Drag to resize"
       >
-        <div className="w-2 h-2 bg-primary rounded-full" />
+        <GripVertical className="w-3.5 h-3.5 rotate-45 text-foreground/60" />
       </div>
     </motion.div>
   );
