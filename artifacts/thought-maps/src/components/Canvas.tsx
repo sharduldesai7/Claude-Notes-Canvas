@@ -11,6 +11,7 @@ interface CanvasProps {
 
 export function Canvas({ map }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasDragAllowed = useRef(false);
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -21,7 +22,7 @@ export function Canvas({ map }: CanvasProps) {
   useGesture(
     {
       onDrag: ({ delta: [dx, dy], pinching }) => {
-        if (pinching) return;
+        if (pinching || !canvasDragAllowed.current) return;
         setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
       },
       onWheel: ({ delta: [dx, dy], ctrlKey, event }) => {
@@ -66,27 +67,35 @@ export function Canvas({ map }: CanvasProps) {
       ref={containerRef}
       className="w-full h-full relative overflow-hidden bg-dot-grid touch-none select-none"
       onDoubleClick={handleCanvasDoubleClick}
+      onPointerDown={(e) => {
+        // Track whether this drag started from the canvas background (not a node)
+        canvasDragAllowed.current = !(e.target as HTMLElement).closest('[data-node-card]');
+      }}
     >
       <div
         className="absolute inset-0 origin-top-left"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
       >
-        {/* SVG Connections Layer */}
+        {/* SVG Connections Layer — uses CSS classes for color so CSS vars work */}
         <svg
           className="absolute inset-0 overflow-visible pointer-events-none z-0"
-          width="100%"
-          height="100%"
+          style={{ width: '100%', height: '100%' }}
         >
           <defs>
             <marker
-              id="arrowhead"
+              id="synaptica-arrow"
               markerWidth="10"
               markerHeight="7"
               refX="9"
               refY="3.5"
               orient="auto"
             >
-              <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--primary))" />
+              {/* Use className for fill so Tailwind/CSS vars resolve */}
+              <polygon
+                points="0 0, 10 3.5, 0 7"
+                className="fill-primary"
+                style={{ fill: 'hsl(var(--primary))' }}
+              />
             </marker>
           </defs>
 
@@ -102,15 +111,19 @@ export function Canvas({ map }: CanvasProps) {
                 className="group pointer-events-auto cursor-pointer"
                 onClick={() => deleteConnection({ mapId: map.id, connectionId: conn.id })}
               >
+                {/* Wide invisible hit area */}
                 <path d={path} stroke="transparent" strokeWidth="20" fill="none" />
+                {/* Visible dashed path — use style for CSS var compatibility in SVG attributes */}
                 <path
                   d={path}
-                  stroke="hsl(var(--primary)/0.5)"
+                  style={{
+                    stroke: 'hsl(var(--primary) / 0.55)',
+                    fill: 'none',
+                  }}
                   strokeWidth="2"
                   strokeDasharray="6 5"
-                  fill="none"
-                  markerEnd="url(#arrowhead)"
-                  className="group-hover:stroke-destructive transition-colors duration-200"
+                  markerEnd="url(#synaptica-arrow)"
+                  className="group-hover:[stroke:hsl(var(--destructive))] transition-colors duration-200"
                 />
               </g>
             );
@@ -119,11 +132,16 @@ export function Canvas({ map }: CanvasProps) {
 
         {/* Nodes Layer */}
         <div className="absolute inset-0 z-10 pointer-events-none">
-          {map.nodes.map((node) => (
-            <div key={node.id} className="pointer-events-auto absolute">
-              <NodeCard node={node} zoom={zoom} />
-            </div>
-          ))}
+          {map.nodes.map((node) => {
+            const otherNodeIds = map.nodes
+              .filter((n) => n.id !== node.id)
+              .map((n) => n.id);
+            return (
+              <div key={node.id} className="pointer-events-auto absolute">
+                <NodeCard node={node} zoom={zoom} otherNodeIds={otherNodeIds} />
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -140,7 +158,7 @@ export function Canvas({ map }: CanvasProps) {
             <kbd className="font-sans bg-muted px-1 rounded">Ctrl + Scroll</kbd> to zoom
           </span>
           <span>
-            <kbd className="font-sans bg-muted px-1 rounded">/claude</kbd> + Enter to ask AI
+            <kbd className="font-sans bg-muted px-1 rounded">/claude</kbd> + Enter for AI
           </span>
         </div>
       </div>

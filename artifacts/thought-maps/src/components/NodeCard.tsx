@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 interface NodeCardProps {
   node: Node;
   zoom: number;
+  otherNodeIds: number[];
 }
 
 const MIN_WIDTH = 220;
@@ -28,12 +29,14 @@ const COLORS = [
   { name: 'grey', value: '#F5F5F5' },
 ];
 
-export function NodeCard({ node, zoom }: NodeCardProps) {
+export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
   const [claudeText, setClaudeText] = useState(node.claudeResponse || "");
   const [cardColor, setCardColor] = useState(node.color || '#FFFFFF');
   const [cardWidth, setCardWidth] = useState(node.width || DEFAULT_WIDTH);
+  // Keep a ref so useDrag memo captures the initial width per gesture
+  const cardWidthRef = useRef(cardWidth);
 
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
@@ -49,7 +52,10 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
     setContent(node.content);
     setClaudeText(node.claudeResponse || "");
     if (node.color) setCardColor(node.color);
-    if (node.width) setCardWidth(node.width);
+    if (node.width) {
+      setCardWidth(node.width);
+      cardWidthRef.current = node.width;
+    }
   }, [node.content, node.claudeResponse, node.color, node.width]);
 
   const autoResize = () => {
@@ -61,6 +67,7 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
 
   useEffect(() => { autoResize(); }, [content]);
 
+  // ── Drag to move (grab handle only) ──────────────────────────────────
   const bindDrag = useDrag(({ offset: [ox, oy], last, event }) => {
     event.stopPropagation();
     setPos({ x: ox, y: oy });
@@ -71,6 +78,36 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
     from: () => [pos.x, pos.y],
     transform: ([x, y]) => [x / zoom, y / zoom],
   });
+
+  // ── Resize via native mouse events ────────────────────────────────────
+  // Native mouse handlers work reliably without pointer-capture conflicts with the canvas pan.
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = cardWidthRef.current;
+
+    const onMove = (ev: MouseEvent) => {
+      ev.stopPropagation();
+      const dx = (ev.clientX - startX) / zoom;
+      const next = Math.max(MIN_WIDTH, startWidth + dx);
+      setCardWidth(next);
+      cardWidthRef.current = next;
+    };
+
+    const onUp = (ev: MouseEvent) => {
+      const dx = (ev.clientX - startX) / zoom;
+      const final = Math.max(MIN_WIDTH, startWidth + dx);
+      setCardWidth(final);
+      cardWidthRef.current = final;
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { width: Math.round(final) } });
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
 
   const handleContentBlur = () => {
     if (content !== node.content) {
@@ -83,14 +120,14 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
   };
 
+  // ── Claude invocation ─────────────────────────────────────────────────
   const handleAskClaude = async (prompt: string) => {
     let accumulated = "";
     setClaudeText("");
-
     await generate(node.mapId, node.id, prompt, (chunk) => {
       accumulated += chunk;
       setClaudeText(accumulated);
-    });
+    }, otherNodeIds);
 
     updateNode({
       mapId: node.mapId,
@@ -99,6 +136,7 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
     });
   };
 
+  // Enter (not Shift+Enter) on a line starting with /claude → invoke Claude
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       const lines = content.split('\n');
@@ -113,30 +151,6 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
         handleAskClaude(prompt);
       }
     }
-  };
-
-  const handleResizePointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = cardWidth;
-
-    const onMove = (ev: PointerEvent) => {
-      const dx = (ev.clientX - startX) / zoom;
-      setCardWidth(Math.max(MIN_WIDTH, startWidth + dx));
-    };
-
-    const onUp = (ev: PointerEvent) => {
-      const dx = (ev.clientX - startX) / zoom;
-      const finalWidth = Math.max(MIN_WIDTH, startWidth + dx);
-      setCardWidth(finalWidth);
-      updateNode({ mapId: node.mapId, nodeId: node.id, data: { width: Math.round(finalWidth) } });
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-    };
-
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onUp);
   };
 
   const showClaudeBox = claudeText.length > 0 || isGenerating;
@@ -168,7 +182,7 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
         <X className="w-3.5 h-3.5" />
       </Button>
 
-      {/* Drag Handle */}
+      {/* ── Drag handle ───────────────────────────────────────────── */}
       <div
         {...bindDrag()}
         className="h-8 bg-black/5 rounded-t-2xl border-b border-black/10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-black/10 transition-colors relative"
@@ -207,7 +221,6 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
           </Popover>
         </div>
 
-        {/* Sparkle icon when generating */}
         {isGenerating && (
           <div className="absolute right-2">
             <Sparkles className="w-3.5 h-3.5 text-primary animate-pulse" />
@@ -215,7 +228,7 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
         )}
       </div>
 
-      {/* Claude Response Area — shown ABOVE the textarea so user can write below */}
+      {/* ── Claude response (above textarea) ──────────────────────── */}
       <AnimatePresence>
         {showClaudeBox && (
           <motion.div
@@ -236,7 +249,7 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
                 Thinking…
               </div>
             ) : (
-              <div className="prose prose-sm prose-p:leading-relaxed prose-p:my-1 text-foreground/90 font-serif max-h-64 overflow-y-auto">
+              <div className="text-sm text-foreground/90 font-serif leading-relaxed max-h-64 overflow-y-auto">
                 {claudeText.split('\n').map((line, i) => (
                   <p key={i} className="min-h-[1em]">{line}</p>
                 ))}
@@ -246,8 +259,8 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Note textarea — always at bottom so user can keep writing below Claude's response */}
-      <div className="p-5 flex flex-col gap-2">
+      {/* ── Note textarea (always at bottom) ──────────────────────── */}
+      <div className="p-5 flex flex-col">
         <textarea
           ref={textareaRef}
           value={content}
@@ -256,14 +269,17 @@ export function NodeCard({ node, zoom }: NodeCardProps) {
           onKeyDown={handleKeyDown}
           onPointerDown={(e) => e.stopPropagation()}
           className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
-          placeholder={showClaudeBox ? "Continue writing…" : "Jot down a thought… or type /claude <question> and press Enter"}
+          placeholder={showClaudeBox
+            ? "Continue writing below Claude's response…"
+            : "Jot a thought… or type /claude <question> and press Enter"
+          }
         />
       </div>
 
-      {/* Resize handle — bottom-right corner */}
+      {/* ── Resize grip (bottom-right) ─────────────────────────────────── */}
       <div
+        onMouseDown={handleResizeMouseDown}
         className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center cursor-se-resize opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
-        onPointerDown={handleResizePointerDown}
         title="Drag to resize"
       >
         <GripVertical className="w-3.5 h-3.5 rotate-45 text-foreground/60" />
