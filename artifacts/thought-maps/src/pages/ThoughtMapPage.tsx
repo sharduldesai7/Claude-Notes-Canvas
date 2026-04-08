@@ -3,18 +3,20 @@ import { useEffect } from "react";
 import { useThoughtMap, useThoughtMaps, useCreateThoughtMap } from "@/hooks/use-thought-maps";
 import { MapSidebar } from "@/components/MapSidebar";
 import { Canvas } from "@/components/Canvas";
+import { OnboardingModal, useOnboarding } from "@/components/OnboardingModal";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Show } from "@clerk/react";
+import { AnimatePresence } from "framer-motion";
 
 export function ThoughtMapPage() {
   const { mapId } = useParams();
   const [, setLocation] = useLocation();
   const { data: maps, isLoading: isMapsLoading } = useThoughtMaps();
   const { mutate: createMap } = useCreateThoughtMap();
+  const { open: showOnboarding, dismiss: dismissOnboarding } = useOnboarding();
 
-  // Logic to handle empty states or auto-redirect
   useEffect(() => {
     if (!isMapsLoading && maps) {
       if (!mapId) {
@@ -41,8 +43,8 @@ export function ThoughtMapPage() {
       <Show when="signed-in">
         <div className="flex h-screen w-full bg-background overflow-hidden selection:bg-primary/20">
           <MapSidebar />
-          
-          <main className="flex-1 relative flex flex-col h-full bg-background">
+
+          <main className="flex-1 relative flex flex-col h-full bg-background min-w-0">
             {isMapsLoading || (mapId && isMapLoading) ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4 text-primary">
@@ -59,7 +61,7 @@ export function ThoughtMapPage() {
             ) : !mapId && maps?.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-dot-grid">
                 <div className="max-w-md space-y-6">
-                  <img 
+                  <img
                     src={`${import.meta.env.BASE_URL}images/empty-state.png`}
                     alt="Empty notebook and floating shapes"
                     className="w-48 h-48 mx-auto opacity-90 drop-shadow-xl"
@@ -80,6 +82,13 @@ export function ThoughtMapPage() {
             ) : null}
           </main>
         </div>
+
+        {/* Onboarding overlay — shown once for new users */}
+        <AnimatePresence>
+          {showOnboarding && (
+            <OnboardingModal onDismiss={dismissOnboarding} />
+          )}
+        </AnimatePresence>
       </Show>
     </>
   );
