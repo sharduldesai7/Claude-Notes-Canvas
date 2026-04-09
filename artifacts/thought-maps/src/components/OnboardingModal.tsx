@@ -4,7 +4,7 @@ import { X, MousePointerClick, Sparkles, Map, ArrowRight, Check } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "synaptica_onboarded_v1";
+const STORAGE_KEY = "synaptica_onboarded_v2";
 
 export function useOnboarding() {
   const [open, setOpen] = useState(() => {
@@ -43,10 +43,10 @@ const STEPS: Step[] = [
   },
   {
     icon: <Sparkles className="w-8 h-8" />,
-    title: "Ask Claude AI",
+    title: "Chat with Claude AI",
     description:
-      "Inside any note, type /claude followed by your question and press Enter. Claude reads your other notes for context and responds right inside the card.",
-    hint: "Tip: you can ask Claude multiple questions — answers stack up like a chat thread.",
+      "Use the chat bar at the bottom of the canvas to ask Claude anything. Each conversation creates a dedicated AI Chat note — with your messages on the right and Claude's replies on the left, just like a chat.",
+    hint: "Tip: keep chatting directly inside any AI Chat note to continue the conversation. Claude always has your canvas context.",
   },
   {
     icon: <Check className="w-8 h-8" />,
