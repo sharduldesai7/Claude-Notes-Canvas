@@ -130,7 +130,7 @@ router.get("/:mapId/nodes", async (req: any, res) => {
   }
 });
 
-// Create a node — auto-connects to all existing nodes
+// Create a node — auto-connects to all existing nodes, auto-assigns title
 router.post("/:mapId/nodes", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
@@ -139,15 +139,26 @@ router.post("/:mapId/nodes", async (req: any, res) => {
       return;
     }
 
-    const { content = "", positionX = 100, positionY = 100, width = 280, height = 160, color } = req.body;
+    const { content = "", positionX = 100, positionY = 100, width = 280, height = 160, color, nodeType = "note", chatHistory, title: titleOverride } = req.body;
 
     // Get all existing nodes before creating the new one
     const existingNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
 
+    // Auto-generate title
+    let title: string;
+    if (titleOverride) {
+      title = titleOverride;
+    } else if (nodeType === "ai_chat") {
+      title = "AI Chat";
+    } else {
+      const noteCount = existingNodes.filter(n => n.nodeType === "note").length;
+      title = `Untitled ${noteCount + 1}`;
+    }
+
     // Create the new node
     const [node] = await db
       .insert(nodesTable)
-      .values({ mapId, content, positionX, positionY, width, height, color: color || null })
+      .values({ mapId, title, nodeType, content, chatHistory: chatHistory || null, positionX, positionY, width, height, color: color || null })
       .returning();
 
     // Auto-connect new node to all existing nodes
@@ -278,6 +289,109 @@ router.delete("/:mapId/connections/:connectionId", async (req: any, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to delete connection" });
+  }
+});
+
+// Chat with an AI chat node — SSE streaming, maintains conversation history
+router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
+  try {
+    const mapId = parseInt(req.params.mapId);
+    const nodeId = parseInt(req.params.nodeId);
+    const { message, contextNodeIds } = req.body;
+
+    if (!message) {
+      res.status(400).json({ error: "message is required" });
+      return;
+    }
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    // Fetch current node & user settings
+    const [nodeRow] = await db.select().from(nodesTable).where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)));
+    if (!nodeRow) { res.status(404).json({ error: "Node not found" }); return; }
+
+    let [userSettings] = await db.select().from(userSettingsTable).where(eq(userSettingsTable.userId, req.userId));
+    const preferredModel = userSettings?.preferredModel || "claude-sonnet-4-6";
+    const customApiKey = userSettings?.customApiKey;
+    const customBaseUrl = userSettings?.customBaseUrl;
+
+    // Parse existing history
+    let history: { role: "user" | "assistant"; text: string }[] = [];
+    try { if (nodeRow.chatHistory) history = JSON.parse(nodeRow.chatHistory); } catch {}
+
+    // Build context from other notes
+    let contextSections: string[] = [];
+    if (contextNodeIds && contextNodeIds.length > 0) {
+      const allNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
+      const referenced = allNodes.filter((n) => contextNodeIds.includes(n.id) && n.nodeType === "note");
+      contextSections = referenced
+        .filter(n => n.content)
+        .map(n => `Note "${n.title || "Untitled"}": ${n.content}`);
+    }
+
+    const systemPrompt = [
+      "You are a helpful AI assistant inside a mind-mapping app called Synaptica. Respond conversationally and concisely.",
+      contextSections.length > 0
+        ? `\n\nContext from notes on the canvas:\n${contextSections.join("\n\n")}`
+        : ""
+    ].join("");
+
+    // Build Anthropic messages array from history + new message
+    const anthropicMessages = [
+      ...history.map(m => ({ role: m.role, content: m.text })),
+      { role: "user" as const, content: message },
+    ];
+
+    // Append user message to history
+    const updatedHistory = [...history, { role: "user" as const, text: message }];
+
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+
+    let client = anthropic;
+    if (customApiKey?.trim()) {
+      const opts: { apiKey: string; baseURL?: string } = { apiKey: customApiKey };
+      if (customBaseUrl) opts.baseURL = customBaseUrl;
+      client = new Anthropic(opts) as any;
+    }
+
+    let fullResponse = "";
+    const stream = (client as any).messages.stream({
+      model: preferredModel,
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    });
+
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        fullResponse += event.delta.text;
+        res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
+      }
+    }
+
+    // Persist complete history (user msg + assistant response)
+    const finalHistory = [...updatedHistory, { role: "assistant" as const, text: fullResponse }];
+    await db
+      .update(nodesTable)
+      .set({ chatHistory: JSON.stringify(finalHistory), updatedAt: new Date() })
+      .where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)));
+
+    res.write(`data: ${JSON.stringify({ done: true, history: finalHistory })}\n\n`);
+    res.end();
+  } catch (err) {
+    req.log.error(err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to get chat response" });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
+      res.end();
+    }
   }
 });
 

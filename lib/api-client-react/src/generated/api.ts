@@ -19,6 +19,7 @@ import type {
 import type {
   ApiError,
   AskClaudeBody,
+  ChatBody,
   Connection,
   CreateConnectionBody,
   CreateNodeBody,
@@ -1139,6 +1140,94 @@ export const useDeleteConnection = <
   TContext
 > => {
   return useMutation(getDeleteConnectionMutationOptions(options));
+};
+
+/**
+ * @summary Send a chat message to an AI chat node and stream a response (SSE)
+ */
+export const getChatWithNodeUrl = (mapId: number, nodeId: number) => {
+  return `/api/thought-maps/${mapId}/nodes/${nodeId}/chat`;
+};
+
+export const chatWithNode = async (
+  mapId: number,
+  nodeId: number,
+  chatBody: ChatBody,
+  options?: RequestInit,
+): Promise<unknown> => {
+  return customFetch<unknown>(getChatWithNodeUrl(mapId, nodeId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(chatBody),
+  });
+};
+
+export const getChatWithNodeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof chatWithNode>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<ChatBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof chatWithNode>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<ChatBody> },
+  TContext
+> => {
+  const mutationKey = ["chatWithNode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof chatWithNode>>,
+    { mapId: number; nodeId: number; data: BodyType<ChatBody> }
+  > = (props) => {
+    const { mapId, nodeId, data } = props ?? {};
+
+    return chatWithNode(mapId, nodeId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ChatWithNodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof chatWithNode>>
+>;
+export type ChatWithNodeMutationBody = BodyType<ChatBody>;
+export type ChatWithNodeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a chat message to an AI chat node and stream a response (SSE)
+ */
+export const useChatWithNode = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof chatWithNode>>,
+    TError,
+    { mapId: number; nodeId: number; data: BodyType<ChatBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof chatWithNode>>,
+  TError,
+  { mapId: number; nodeId: number; data: BodyType<ChatBody> },
+  TContext
+> => {
+  return useMutation(getChatWithNodeMutationOptions(options));
 };
 
 /**

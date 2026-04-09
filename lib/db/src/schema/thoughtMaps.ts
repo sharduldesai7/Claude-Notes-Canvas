@@ -17,7 +17,10 @@ export type ThoughtMap = typeof thoughtMapsTable.$inferSelect;
 export const nodesTable = pgTable("nodes", {
   id: serial("id").primaryKey(),
   mapId: integer("map_id").notNull().references(() => thoughtMapsTable.id, { onDelete: "cascade" }),
+  title: text("title"),
+  nodeType: text("node_type").notNull().default("note"),  // 'note' | 'ai_chat'
   content: text("content").notNull().default(""),
+  chatHistory: text("chat_history"),                      // JSON array for ai_chat nodes
   positionX: real("position_x").notNull().default(100),
   positionY: real("position_y").notNull().default(100),
   width: real("width").notNull().default(280),

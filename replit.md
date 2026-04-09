@@ -2,7 +2,7 @@
 
 ## Overview
 
-Synaptica is a mind-map style note-taking web app with an infinite canvas, AI integration via Claude (triggered by `/claude` in notes), visual arrow connections between notes, and a sidebar for managing multiple "Thought Maps" (canvases). Users log in with Google via Clerk auth, notes have user-selectable colors, all notes auto-connect when created, and users can configure their own LLM model in profile settings.
+Synaptica is a mind-map style note-taking web app with an infinite canvas, AI integration via a bottom chat bar that creates WhatsApp-style "AI chat nodes", a collapsible sidebar for managing multiple "Thought Maps" (canvases), and Clerk Google auth. Notes have user-selectable colors, editable titles (defaulting to "Untitled N"), auto-connect when created, and users can configure their preferred LLM model in profile settings.
 
 pnpm workspace monorepo using TypeScript.
 
@@ -55,7 +55,7 @@ artifacts-monorepo/
 ## Database Schema
 
 - **thought_maps** — canvas pages (id, title, userId, createdAt, updatedAt)
-- **nodes** — note cards on a canvas (id, mapId, content, positionX, positionY, width, height, color, claudeResponse, isProcessing, createdAt, updatedAt)
+- **nodes** — note/AI chat cards on a canvas (id, mapId, title, nodeType ["note"|"ai_chat"], content, positionX, positionY, width, height, color, claudeResponse, chatHistory, isProcessing, createdAt, updatedAt)
 - **connections** — arrows linking nodes (id, mapId, fromNodeId, toNodeId, createdAt)
 - **user_settings** — per-user AI preferences (userId, preferredModel, customApiKey, customBaseUrl, updatedAt)
 

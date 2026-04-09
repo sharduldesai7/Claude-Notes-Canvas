@@ -34,7 +34,6 @@ const COLORS = [
   { name: 'grey', value: '#F5F5F5' },
 ];
 
-/** Parse stored claudeResponse — supports both legacy plain strings and new JSON arrays */
 function parseHistory(raw: string | null | undefined): ClaudeEntry[] {
   if (!raw) return [];
   try {
@@ -49,14 +48,11 @@ function parseHistory(raw: string | null | undefined): ClaudeEntry[] {
 export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
+  const [title, setTitle] = useState(node.title || "");
+  const [editingTitle, setEditingTitle] = useState(false);
 
-  // Chat history — initialized once from server, then managed locally.
-  // We do NOT re-sync from node.claudeResponse after mount to avoid a race condition
-  // where the server refetch (triggered by updateNode) overwrites our freshly-appended entry.
   const [history, setHistory] = useState<ClaudeEntry[]>(() => parseHistory(node.claudeResponse));
   const lastSeenNodeId = useRef(node.id);
-
-  // In-progress streaming text for the current generation
   const [streamingText, setStreamingText] = useState("");
 
   const [cardColor, setCardColor] = useState(node.color || '#FFFFFF');
@@ -68,6 +64,7 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
   const { generate, isGenerating } = useAskClaudeStream();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,15 +78,13 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
       setCardWidth(node.width);
       cardWidthRef.current = node.width;
     }
-    // Re-initialize history only when this card's node changes (e.g. map switch)
-    // — NOT on every server refetch, which would wipe locally-accumulated entries.
     if (lastSeenNodeId.current !== node.id) {
       setHistory(parseHistory(node.claudeResponse));
+      setTitle(node.title || "");
       lastSeenNodeId.current = node.id;
     }
-  }, [node.id, node.content, node.claudeResponse, node.color, node.width]);
+  }, [node.id, node.content, node.claudeResponse, node.color, node.width, node.title]);
 
-  // Scroll chat end into view after each new entry or streaming chunk
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [history, streamingText]);
@@ -100,10 +95,8 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   };
-
   useEffect(() => { autoResize(); }, [content]);
 
-  // ── Drag to move (grab handle only) ──────────────────────────────────
   const bindDrag = useDrag(({ offset: [ox, oy], last, event }) => {
     event.stopPropagation();
     setPos({ x: ox, y: oy });
@@ -115,7 +108,6 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
     transform: ([x, y]) => [x / zoom, y / zoom],
   });
 
-  // ── Resize via native mouse events ────────────────────────────────────
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -150,12 +142,19 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
     }
   };
 
+  const handleTitleBlur = () => {
+    setEditingTitle(false);
+    const trimmed = title.trim() || node.title || "Untitled";
+    if (trimmed !== node.title) {
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { title: trimmed } });
+    }
+  };
+
   const handleColorChange = (color: string) => {
     setCardColor(color);
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
   };
 
-  // ── Claude invocation — appends to history, never wipes previous ──────
   const handleAskClaude = async (question: string) => {
     let accumulated = "";
     setStreamingText("");
@@ -168,7 +167,6 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
     const newEntry: ClaudeEntry = { question, answer: accumulated };
     setHistory((prev) => {
       const updated = [...prev, newEntry];
-      // Persist the full history as JSON
       updateNode({
         mapId: node.mapId,
         nodeId: node.id,
@@ -177,23 +175,6 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
       return updated;
     });
     setStreamingText("");
-  };
-
-  // Enter (not Shift+Enter) on a line starting with /claude → invoke Claude
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      const lines = content.split('\n');
-      const lastLine = lines[lines.length - 1];
-      if (lastLine.toLowerCase().startsWith('/claude')) {
-        e.preventDefault();
-        const question = lastLine.replace(/^\/claude\s*/i, '').trim();
-        if (!question) return;
-        const newContent = lines.slice(0, -1).join('\n');
-        setContent(newContent);
-        updateNode({ mapId: node.mapId, nodeId: node.id, data: { content: newContent } });
-        handleAskClaude(question);
-      }
-    }
   };
 
   const showChatSection = history.length > 0 || isGenerating;
@@ -225,14 +206,13 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         <X className="w-3.5 h-3.5" />
       </Button>
 
-      {/* ── Drag handle ───────────────────────────────────────────── */}
+      {/* Drag handle */}
       <div
         {...bindDrag()}
         className="h-8 bg-black/5 rounded-t-2xl border-b border-black/10 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-black/10 transition-colors relative"
       >
         <GripHorizontal className="w-5 h-5 text-foreground/40" />
 
-        {/* Color picker */}
         <div className="absolute left-2" onPointerDown={(e) => e.stopPropagation()}>
           <Popover>
             <PopoverTrigger asChild>
@@ -271,46 +251,70 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         )}
       </div>
 
-      {/* ── Chat history (grows downward, no max-height cap) ─────────────── */}
+      {/* Editable title */}
+      <div
+        className="px-4 pt-3 pb-0"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                e.preventDefault();
+                titleInputRef.current?.blur();
+              }
+            }}
+            className="w-full bg-transparent border-none outline-none text-xs font-semibold text-foreground/60 placeholder:text-foreground/30 tracking-wide"
+            autoFocus
+          />
+        ) : (
+          <button
+            className="text-xs font-semibold text-foreground/40 hover:text-foreground/70 transition-colors tracking-wide text-left truncate w-full"
+            onClick={() => {
+              setEditingTitle(true);
+              setTimeout(() => titleInputRef.current?.select(), 0);
+            }}
+          >
+            {title || "Untitled"}
+          </button>
+        )}
+      </div>
+
+      {/* Chat history */}
       <AnimatePresence>
         {showChatSection && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 max-h-96 overflow-y-auto"
+            className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 max-h-96 overflow-y-auto mt-3"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-primary/70" />
               <span className="text-xs font-semibold text-primary/70 uppercase tracking-wide">Claude</span>
             </div>
 
-            {/* All previous Q&A entries */}
             {history.map((entry, i) => (
               <div key={i} className="flex flex-col gap-1.5">
                 {entry.question && (
-                  <p className="text-xs text-foreground/50 font-medium italic">
-                    {entry.question}
-                  </p>
+                  <p className="text-xs text-foreground/50 font-medium italic">{entry.question}</p>
                 )}
                 <div className="text-sm text-foreground/90 font-serif leading-relaxed">
                   {entry.answer.split('\n').map((line, j) => (
                     <p key={j} className="min-h-[1em]">{line}</p>
                   ))}
                 </div>
-                {/* Separator between entries (not after the last one) */}
-                {i < history.length - 1 && (
-                  <hr className="border-black/10 mt-1" />
-                )}
+                {i < history.length - 1 && <hr className="border-black/10 mt-1" />}
               </div>
             ))}
 
-            {/* Currently streaming response */}
             {isGenerating && (
               <div className="flex flex-col gap-1.5">
-                {/* Show separator if there are previous entries */}
                 {history.length > 0 && <hr className="border-black/10" />}
                 {streamingText.length === 0 ? (
                   <div className="flex items-center gap-2 text-foreground/50 text-sm">
@@ -327,30 +331,25 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
               </div>
             )}
 
-            {/* Scroll anchor */}
             <div ref={chatEndRef} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Note textarea (always at bottom) ──────────────────────── */}
-      <div className="p-5 flex flex-col">
+      {/* Note textarea */}
+      <div className="px-4 pt-2 pb-4 flex flex-col">
         <textarea
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onBlur={handleContentBlur}
-          onKeyDown={handleKeyDown}
           onPointerDown={(e) => e.stopPropagation()}
           className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
-          placeholder={showChatSection
-            ? "Continue writing, or /claude <question> + Enter to ask again…"
-            : "Jot a thought… or type /claude <question> and press Enter"
-          }
+          placeholder="Jot a thought…"
         />
       </div>
 
-      {/* ── Resize grip (bottom-right) ─────────────────────────────────── */}
+      {/* Resize grip */}
       <div
         onMouseDown={handleResizeMouseDown}
         className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center cursor-se-resize opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"

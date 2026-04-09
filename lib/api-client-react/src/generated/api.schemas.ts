@@ -20,7 +20,10 @@ export interface ThoughtMap {
 export interface Node {
   id: number;
   mapId: number;
+  title?: string | null;
+  nodeType: string;
   content: string;
+  chatHistory?: string | null;
   positionX: number;
   positionY: number;
   width: number;
@@ -67,7 +70,10 @@ export interface UpdateThoughtMapBody {
 }
 
 export interface CreateNodeBody {
+  title?: string | null;
+  nodeType?: string;
   content: string;
+  chatHistory?: string | null;
   positionX: number;
   positionY: number;
   width?: number;
@@ -76,7 +82,10 @@ export interface CreateNodeBody {
 }
 
 export interface UpdateNodeBody {
+  title?: string | null;
+  nodeType?: string;
   content?: string;
+  chatHistory?: string | null;
   positionX?: number;
   positionY?: number;
   width?: number;
@@ -84,6 +93,11 @@ export interface UpdateNodeBody {
   color?: string | null;
   claudeResponse?: string | null;
   isProcessing?: boolean;
+}
+
+export interface ChatBody {
+  message: string;
+  contextNodeIds?: number[];
 }
 
 export interface CreateConnectionBody {

@@ -7,7 +7,10 @@
  */
 
 export interface UpdateNodeBody {
+  title?: string | null;
+  nodeType?: string;
   content?: string;
+  chatHistory?: string | null;
   positionX?: number;
   positionY?: number;
   width?: number;

@@ -51,7 +51,10 @@ export const GetThoughtMapResponse = zod.object({
     zod.object({
       id: zod.number(),
       mapId: zod.number(),
+      title: zod.string().nullish(),
+      nodeType: zod.string(),
       content: zod.string(),
+      chatHistory: zod.string().nullish(),
       positionX: zod.number(),
       positionY: zod.number(),
       width: zod.number(),
@@ -110,7 +113,10 @@ export const ListNodesParams = zod.object({
 export const ListNodesResponseItem = zod.object({
   id: zod.number(),
   mapId: zod.number(),
+  title: zod.string().nullish(),
+  nodeType: zod.string(),
   content: zod.string(),
+  chatHistory: zod.string().nullish(),
   positionX: zod.number(),
   positionY: zod.number(),
   width: zod.number(),
@@ -131,7 +137,10 @@ export const CreateNodeParams = zod.object({
 });
 
 export const CreateNodeBody = zod.object({
+  title: zod.string().nullish(),
+  nodeType: zod.string().optional(),
   content: zod.string(),
+  chatHistory: zod.string().nullish(),
   positionX: zod.number(),
   positionY: zod.number(),
   width: zod.number().optional(),
@@ -148,7 +157,10 @@ export const UpdateNodeParams = zod.object({
 });
 
 export const UpdateNodeBody = zod.object({
+  title: zod.string().nullish(),
+  nodeType: zod.string().optional(),
   content: zod.string().optional(),
+  chatHistory: zod.string().nullish(),
   positionX: zod.number().optional(),
   positionY: zod.number().optional(),
   width: zod.number().optional(),
@@ -161,7 +173,10 @@ export const UpdateNodeBody = zod.object({
 export const UpdateNodeResponse = zod.object({
   id: zod.number(),
   mapId: zod.number(),
+  title: zod.string().nullish(),
+  nodeType: zod.string(),
   content: zod.string(),
+  chatHistory: zod.string().nullish(),
   positionX: zod.number(),
   positionY: zod.number(),
   width: zod.number(),
@@ -215,6 +230,19 @@ export const CreateConnectionBody = zod.object({
 export const DeleteConnectionParams = zod.object({
   mapId: zod.coerce.number(),
   connectionId: zod.coerce.number(),
+});
+
+/**
+ * @summary Send a chat message to an AI chat node and stream a response (SSE)
+ */
+export const ChatWithNodeParams = zod.object({
+  mapId: zod.coerce.number(),
+  nodeId: zod.coerce.number(),
+});
+
+export const ChatWithNodeBody = zod.object({
+  message: zod.string(),
+  contextNodeIds: zod.array(zod.number()).optional(),
 });
 
 /**

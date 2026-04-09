@@ -8,6 +8,7 @@
 
 export * from "./apiError";
 export * from "./askClaudeBody";
+export * from "./chatBody";
 export * from "./connection";
 export * from "./createConnectionBody";
 export * from "./createNodeBody";

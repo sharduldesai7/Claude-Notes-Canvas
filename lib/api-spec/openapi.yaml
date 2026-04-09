@@ -283,6 +283,34 @@ paths:
         "204":
           description: Deleted
 
+  /thought-maps/{mapId}/nodes/{nodeId}/chat:
+    post:
+      operationId: chatWithNode
+      tags: [thought-maps]
+      summary: Send a chat message to an AI chat node and stream a response (SSE)
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: nodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatBody"
+      responses:
+        "200":
+          description: SSE stream of chat response
+          content:
+            text/event-stream: {}
+
   /thought-maps/{mapId}/nodes/{nodeId}/ask-claude:
     post:
       operationId: askClaude
@@ -412,8 +440,16 @@ components:
           type: integer
         mapId:
           type: integer
+        title:
+          type: string
+          nullable: true
+        nodeType:
+          type: string
         content:
           type: string
+        chatHistory:
+          type: string
+          nullable: true
         positionX:
           type: number
         positionY:
@@ -439,6 +475,7 @@ components:
       required:
         - id
         - mapId
+        - nodeType
         - content
         - positionX
         - positionY
@@ -507,8 +544,16 @@ components:
     CreateNodeBody:
       type: object
       properties:
+        title:
+          type: string
+          nullable: true
+        nodeType:
+          type: string
         content:
           type: string
+        chatHistory:
+          type: string
+          nullable: true
         positionX:
           type: number
         positionY:
@@ -528,8 +573,16 @@ components:
     UpdateNodeBody:
       type: object
       properties:
+        title:
+          type: string
+          nullable: true
+        nodeType:
+          type: string
         content:
           type: string
+        chatHistory:
+          type: string
+          nullable: true
         positionX:
           type: number
         positionY:
@@ -546,6 +599,18 @@ components:
           nullable: true
         isProcessing:
           type: boolean
+
+    ChatBody:
+      type: object
+      properties:
+        message:
+          type: string
+        contextNodeIds:
+          type: array
+          items:
+            type: integer
+      required:
+        - message
 
     CreateConnectionBody:
       type: object
