@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useGesture } from "@use-gesture/react";
 import { ThoughtMapFull, Node } from "@workspace/api-client-react";
 import { useCreateNode } from "@/hooks/use-nodes";
@@ -24,9 +24,27 @@ export function Canvas({ map }: CanvasProps) {
 
   // Per-node streaming text (for AI chat nodes)
   const [nodeStreamingTexts, setNodeStreamingTexts] = useState<Record<number, string>>({});
+  // Holds the final chat history optimistically until the DB refetch lands
+  const [nodePendingHistories, setNodePendingHistories] = useState<Record<number, ChatMessage[]>>({});
 
   const { mutateAsync: createNodeAsync } = useCreateNode();
   const { sendMessage, streamingNodeId } = useChatStream();
+
+  // When server data lands (map.nodes updates), clear pendingHistory for nodes that now have chatHistory
+  useEffect(() => {
+    setNodePendingHistories((prev) => {
+      const pendingIds = Object.keys(prev).map(Number);
+      if (pendingIds.length === 0) return prev;
+      const toRemove = pendingIds.filter((id) => {
+        const node = map.nodes.find((n) => n.id === id);
+        return node?.chatHistory && node.chatHistory.length > 0;
+      });
+      if (toRemove.length === 0) return prev;
+      const next = { ...prev };
+      toRemove.forEach((id) => delete next[id]);
+      return next;
+    });
+  }, [map.nodes]);
 
   useGesture(
     {
@@ -112,12 +130,15 @@ export function Canvas({ map }: CanvasProps) {
           [nodeId]: (prev[nodeId] ?? "") + chunk,
         }));
       },
-      (_history: ChatMessage[]) => {
+      (history: ChatMessage[]) => {
+        // Clear streaming text and store history optimistically so there's no blank flash
+        // while waiting for the DB refetch to return the updated chatHistory
         setNodeStreamingTexts((prev) => {
           const next = { ...prev };
           delete next[nodeId];
           return next;
         });
+        setNodePendingHistories((prev) => ({ ...prev, [nodeId]: history }));
       },
     );
   }, [map.id, map.nodes, pan, zoom, createNodeAsync, sendMessage]);
@@ -165,6 +186,7 @@ export function Canvas({ map }: CanvasProps) {
                     onChat={handleNodeChat}
                     isStreaming={streamingNodeId === node.id}
                     externalStreamingText={nodeStreamingTexts[node.id]}
+                    pendingHistory={nodePendingHistories[node.id]}
                   />
                 ) : (
                   <NodeCard node={node} zoom={zoom} otherNodeIds={otherNodeIds} />

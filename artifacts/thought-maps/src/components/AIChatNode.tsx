@@ -30,11 +30,13 @@ interface AIChatNodeProps {
   onChat: (nodeId: number, message: string, onChunk: (t: string) => void, onDone: (history: ChatMessage[]) => void) => void;
   isStreaming: boolean;
   externalStreamingText?: string;
+  /** Optimistic history from Canvas while DB refetch is in flight */
+  pendingHistory?: ChatMessage[];
 }
 
 const DEFAULT_WIDTH = 320;
 
-export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, externalStreamingText }: AIChatNodeProps) {
+export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, externalStreamingText, pendingHistory }: AIChatNodeProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [messages, setMessages] = useState<ChatMessage[]>(() => parseChatHistory(node.chatHistory));
   const [streamingText, setStreamingText] = useState("");
@@ -52,11 +54,19 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
     setPos({ x: node.positionX, y: node.positionY });
   }, [node.positionX, node.positionY]);
 
+  // Sync messages whenever chatHistory changes from server (handles node.id change AND
+  // the case where DB refetch populates chatHistory after a bar-initiated stream)
   useEffect(() => {
-    if (lastSeenNodeId.current !== node.id) {
-      setMessages(parseChatHistory(node.chatHistory));
+    const parsed = parseChatHistory(node.chatHistory);
+    if (node.id !== lastSeenNodeId.current) {
+      // Node switched — always re-initialize
+      setMessages(parsed);
       lastSeenNodeId.current = node.id;
+    } else if (parsed.length > messages.length) {
+      // Server has more messages than local state — sync up (refetch landed)
+      setMessages(parsed);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id, node.chatHistory]);
 
   // Scroll to bottom when messages update
@@ -131,9 +141,9 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
         <GripHorizontal className="w-4 h-4 text-primary/40" />
       </div>
 
-      {/* Messages */}
+      {/* Messages — use pendingHistory as optimistic fallback while DB refetch is in flight */}
       <div className="flex-1 overflow-y-auto max-h-80 p-3 flex flex-col gap-2" onPointerDown={(e) => e.stopPropagation()}>
-        {messages.map((msg, i) => (
+        {(messages.length > 0 ? messages : (pendingHistory ?? [])).map((msg, i) => (
           <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
               className={cn(
