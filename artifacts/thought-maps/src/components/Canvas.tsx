@@ -59,6 +59,9 @@ export function Canvas({ map }: CanvasProps) {
         setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
       },
       onWheel: ({ delta: [dx, dy], ctrlKey, event }) => {
+        // If the wheel originated inside a scrollable chat area, let it scroll naturally
+        const target = event.target as HTMLElement;
+        if (target.closest('[data-chat-scroll]')) return;
         event.preventDefault();
         if (ctrlKey) {
           setZoom((z) => Math.max(0.2, Math.min(3, z - dy * 0.01)));

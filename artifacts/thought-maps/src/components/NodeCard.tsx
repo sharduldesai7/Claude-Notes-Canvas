@@ -291,9 +291,9 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
+            data-chat-scroll
             className="border-b border-black/10 bg-black/5 px-5 pt-4 pb-3 flex flex-col gap-4 max-h-96 overflow-y-auto mt-3"
             onPointerDown={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-primary/70" />
