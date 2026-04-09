@@ -142,7 +142,7 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
       </div>
 
       {/* Messages — use pendingHistory as optimistic fallback while DB refetch is in flight */}
-      <div className="flex-1 overflow-y-auto max-h-80 p-3 flex flex-col gap-2" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="flex-1 overflow-y-auto max-h-80 p-3 flex flex-col gap-2" onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
         {(messages.length > 0 ? messages : (pendingHistory ?? [])).map((msg, i) => (
           <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
