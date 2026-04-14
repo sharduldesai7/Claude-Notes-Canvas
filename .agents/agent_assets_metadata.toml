@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "4nkO32UG9XpEqBWo8-d5k"
+uri = "file://README.md"
+type = "text"
+title = "Synaptica README.md"
