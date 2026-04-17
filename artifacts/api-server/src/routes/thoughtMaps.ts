@@ -4,6 +4,7 @@ import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, 
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middlewares/auth";
+import { broadcastMapUpdate } from "../ws-rooms";
 
 const router: IRouter = Router();
 
@@ -210,6 +211,7 @@ router.post("/:mapId/nodes", async (req: any, res) => {
     }
 
     res.status(201).json(node);
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to create node" });
@@ -237,6 +239,7 @@ router.patch("/:mapId/nodes/:nodeId", async (req: any, res) => {
       return;
     }
     res.json(node);
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to update node" });
@@ -262,6 +265,7 @@ router.delete("/:mapId/nodes/:nodeId", async (req: any, res) => {
       return;
     }
     res.status(204).send();
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to delete node" });
@@ -304,6 +308,7 @@ router.post("/:mapId/connections", async (req: any, res) => {
       .values({ mapId, fromNodeId, toNodeId })
       .returning();
     res.status(201).json(connection);
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to create connection" });
@@ -329,6 +334,7 @@ router.delete("/:mapId/connections/:connectionId", async (req: any, res) => {
       return;
     }
     res.status(204).send();
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to delete connection" });
@@ -428,6 +434,7 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
 
     res.write(`data: ${JSON.stringify({ done: true, history: finalHistory })}\n\n`);
     res.end();
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     if (!res.headersSent) {
@@ -532,6 +539,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
+    broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
     if (!res.headersSent) {

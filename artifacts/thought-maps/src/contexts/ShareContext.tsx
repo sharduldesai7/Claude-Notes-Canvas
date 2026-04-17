@@ -26,6 +26,9 @@ interface ShareProviderProps {
 }
 
 export function ShareProvider({ token, permission, children }: ShareProviderProps) {
+  // Set immediately so children have the token on their very first render
+  setShareToken(token);
+
   useEffect(() => {
     setShareToken(token);
     return () => {

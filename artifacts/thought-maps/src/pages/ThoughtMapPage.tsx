@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Show } from "@clerk/react";
 import { AnimatePresence } from "framer-motion";
+import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 
 export function ThoughtMapPage() {
   const { mapId } = useParams();
@@ -28,6 +29,8 @@ export function ThoughtMapPage() {
   }, [mapId, maps, isMapsLoading, setLocation]);
 
   const { data: map, isLoading: isMapLoading, error } = useThoughtMap(mapId ? parseInt(mapId) : null);
+
+  useRealtimeSync(mapId ? parseInt(mapId) : null);
 
   const handleCreateDefault = () => {
     createMap({ data: { title: "My First Synaptica Map" } }, {

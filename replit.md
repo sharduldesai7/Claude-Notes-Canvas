@@ -4,6 +4,8 @@
 
 Synaptica is a mind-map style note-taking web app with an infinite canvas, AI integration via a bottom chat bar that creates WhatsApp-style "AI chat nodes", a collapsible sidebar for managing multiple "Thought Maps" (canvases), and Clerk Google auth. Notes have user-selectable colors, editable titles (defaulting to "Untitled N"), auto-connect when created, and users can configure their preferred LLM model in profile settings.
 
+Maps can be shared via links with view-only or edit permission. Real-time collaboration is supported — multiple users on the same map see each other's changes instantly via WebSocket push (the server broadcasts the full updated map after every mutation).
+
 pnpm workspace monorepo using TypeScript.
 
 ## Stack
