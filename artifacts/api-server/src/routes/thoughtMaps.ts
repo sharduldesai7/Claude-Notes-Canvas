@@ -365,7 +365,7 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
-    const { message, contextNodeIds, imageObjectPath } = req.body;
+    const { message, imageObjectPath } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
@@ -390,15 +390,13 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     let history: { role: "user" | "assistant"; text: string; imageUrl?: string }[] = [];
     try { if (nodeRow.chatHistory) history = JSON.parse(nodeRow.chatHistory); } catch {}
 
-    // Build context from other notes
-    let contextSections: string[] = [];
-    if (contextNodeIds && contextNodeIds.length > 0) {
-      const allNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
-      const referenced = allNodes.filter((n) => contextNodeIds.includes(n.id) && n.nodeType === "note");
-      contextSections = referenced
-        .filter(n => n.content)
-        .map(n => `Note "${n.title || "Untitled"}": ${n.content}`);
-    }
+    // Build context from ALL notes on the canvas (always fresh from DB — never stale)
+    const allNotes = await db.select().from(nodesTable).where(
+      and(eq(nodesTable.mapId, mapId), eq(nodesTable.nodeType, "note"))
+    );
+    const contextSections = allNotes
+      .filter(n => n.content && n.id !== nodeId)
+      .map(n => `Note "${n.title || "Untitled"}": ${n.content}`);
 
     const systemPrompt = [
       "You are a helpful AI assistant inside a mind-mapping app called Synaptica. Respond conversationally and concisely.",
@@ -486,7 +484,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
-    const { prompt, contextNodeIds } = req.body;
+    const { prompt } = req.body;
 
     if (!prompt) {
       res.status(400).json({ error: "prompt is required" });
@@ -509,23 +507,21 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
     const customApiKey = userSettings?.customApiKey;
     const customBaseUrl = userSettings?.customBaseUrl;
 
-    // Build context from referenced nodes
-    let contextMessages: string[] = [];
-    if (contextNodeIds && contextNodeIds.length > 0) {
-      const contextNodes = await db.select().from(nodesTable).where(eq(nodesTable.mapId, mapId));
-      const referenced = contextNodes.filter((n) => contextNodeIds.includes(n.id));
-      if (referenced.length > 0) {
-        contextMessages = referenced.map((n) => {
-          let ctx = `Note content: ${n.content}`;
-          if (n.claudeResponse) ctx += `\nClaude's previous response: ${n.claudeResponse}`;
-          return ctx;
-        });
-      }
-    }
-
-    // Load node to check for attached image
+    // Load node to check for attached image (also verifies it exists)
     const [askNodeRow] = await db.select().from(nodesTable).where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)));
     if (!askNodeRow) { res.status(404).json({ error: "Node not found" }); return; }
+
+    // Build context from ALL notes on the canvas (always fresh from DB — never stale)
+    const allCanvasNotes = await db.select().from(nodesTable).where(
+      and(eq(nodesTable.mapId, mapId), eq(nodesTable.nodeType, "note"))
+    );
+    const contextMessages = allCanvasNotes
+      .filter(n => n.id !== nodeId)
+      .map(n => {
+        let ctx = `Note "${n.title || "Untitled"}": ${n.content || "(empty)"}`;
+        if (n.claudeResponse) ctx += `\nClaude's previous thoughts: ${n.claudeResponse}`;
+        return ctx;
+      });
 
     // Mark node as processing
     await db
@@ -540,7 +536,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
     res.setHeader("X-Accel-Buffering", "no");
 
     const systemPrompt = contextMessages.length > 0
-      ? `You are a helpful assistant in a mind-mapping app called Synaptica. Context from related notes:\n\n${contextMessages.join("\n\n---\n\n")}`
+      ? `You are a helpful assistant in a mind-mapping app called Synaptica. Context from other notes on the canvas:\n\n${contextMessages.join("\n\n---\n\n")}`
       : "You are a helpful assistant in a mind-mapping app called Synaptica. Help the user think through their ideas clearly and concisely.";
 
     // Optionally attach node image as vision block
