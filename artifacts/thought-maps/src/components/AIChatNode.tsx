@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
-import { GripHorizontal, X, Sparkles, Loader2, Send } from "lucide-react";
+import { GripHorizontal, X, Sparkles, Loader2, Send, GripVertical } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUpdateNode, useDeleteNode } from "@/hooks/use-nodes";
 import { Button } from "@/components/ui/button";
@@ -36,13 +36,19 @@ interface AIChatNodeProps {
 }
 
 const DEFAULT_WIDTH = 320;
+const DEFAULT_HEIGHT = 400;
+const MIN_WIDTH = 240;
+const MIN_HEIGHT = 200;
 
 export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, externalStreamingText, pendingHistory, readOnly = false }: AIChatNodeProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [messages, setMessages] = useState<ChatMessage[]>(() => parseChatHistory(node.chatHistory));
   const [streamingText, setStreamingText] = useState("");
   const [input, setInput] = useState("");
-  const [cardWidth] = useState(node.width || DEFAULT_WIDTH);
+  const [cardWidth, setCardWidth] = useState(node.width || DEFAULT_WIDTH);
+  const [cardHeight, setCardHeight] = useState(node.height || DEFAULT_HEIGHT);
+  const cardWidthRef = useRef(cardWidth);
+  const cardHeightRef = useRef(cardHeight);
 
   const lastSeenNodeId = useRef(node.id);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -54,6 +60,11 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
   useEffect(() => {
     setPos({ x: node.positionX, y: node.positionY });
   }, [node.positionX, node.positionY]);
+
+  useEffect(() => {
+    if (node.width) { setCardWidth(node.width); cardWidthRef.current = node.width; }
+    if (node.height) { setCardHeight(node.height); cardHeightRef.current = node.height; }
+  }, [node.width, node.height]);
 
   // Sync messages whenever chatHistory changes from server (handles node.id change AND
   // the case where DB refetch populates chatHistory after a bar-initiated stream)
@@ -85,6 +96,44 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
     from: () => [pos.x, pos.y],
     transform: ([x, y]) => [x / zoom, y / zoom],
   });
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = cardWidthRef.current;
+    const startHeight = cardHeightRef.current;
+
+    const onMove = (ev: MouseEvent) => {
+      ev.stopPropagation();
+      const nextW = Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX) / zoom);
+      const nextH = Math.max(MIN_HEIGHT, startHeight + (ev.clientY - startY) / zoom);
+      setCardWidth(nextW);
+      setCardHeight(nextH);
+      cardWidthRef.current = nextW;
+      cardHeightRef.current = nextH;
+    };
+
+    const onUp = (ev: MouseEvent) => {
+      const finalW = Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX) / zoom);
+      const finalH = Math.max(MIN_HEIGHT, startHeight + (ev.clientY - startY) / zoom);
+      setCardWidth(finalW);
+      setCardHeight(finalH);
+      cardWidthRef.current = finalW;
+      cardHeightRef.current = finalH;
+      updateNode({
+        mapId: node.mapId,
+        nodeId: node.id,
+        data: { width: Math.round(finalW), height: Math.round(finalH) },
+      });
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   const handleSend = () => {
     const text = input.trim();
@@ -118,7 +167,7 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
       animate={{ opacity: 1, scale: 1 }}
       data-node-card="true"
       className="absolute rounded-2xl shadow-lg border border-primary/30 flex flex-col group hover:shadow-xl transition-shadow bg-card"
-      style={{ width: cardWidth, x: pos.x, y: pos.y, touchAction: "none" }}
+      style={{ width: cardWidth, height: cardHeight, x: pos.x, y: pos.y, touchAction: "none" }}
     >
       {/* Delete — hidden in read-only mode */}
       {!readOnly && (
@@ -145,7 +194,7 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
       </div>
 
       {/* Messages — use pendingHistory as optimistic fallback while DB refetch is in flight */}
-      <div data-chat-scroll className="flex-1 overflow-y-auto max-h-80 p-3 flex flex-col gap-2" onPointerDown={(e) => e.stopPropagation()}>
+      <div data-chat-scroll className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2" onPointerDown={(e) => e.stopPropagation()}>
         {(messages.length > 0 ? messages : (pendingHistory ?? [])).map((msg, i) => (
           <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
@@ -189,7 +238,7 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
 
       {/* Input — hidden in read-only mode */}
       {!readOnly && (
-        <div className="border-t border-border/50 p-2 flex items-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="border-t border-border/50 p-2 flex items-end gap-2 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
           <textarea
             ref={inputRef}
             value={input}
@@ -211,6 +260,17 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
           >
             <Send className="w-3 h-3" />
           </Button>
+        </div>
+      )}
+
+      {/* Resize grip — hidden in read-only mode */}
+      {!readOnly && (
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center cursor-se-resize opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
+          title="Drag to resize"
+        >
+          <GripVertical className="w-3.5 h-3.5 rotate-45 text-primary/60" />
         </div>
       )}
     </motion.div>
