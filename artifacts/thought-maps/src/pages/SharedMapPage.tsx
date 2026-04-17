@@ -18,7 +18,7 @@ interface SharedMapCanvasProps {
 function SharedMapCanvas({ mapId, mapTitle, permission }: SharedMapCanvasProps) {
   const { shareToken } = useShareContext();
 
-  useRealtimeSync(mapId, shareToken);
+  const { remoteCursors, sendCursorMove } = useRealtimeSync(mapId, shareToken);
 
   const { data: map, isLoading } = useGetThoughtMap(mapId, {
     query: { enabled: !!mapId },
@@ -46,7 +46,12 @@ function SharedMapCanvas({ mapId, mapTitle, permission }: SharedMapCanvasProps) 
             {permission === "edit" ? "Can edit" : "View only"}
           </span>
         </div>
-        <Canvas map={map} readOnly={permission === "read"} />
+        <Canvas
+          map={map}
+          readOnly={permission === "read"}
+          remoteCursors={remoteCursors}
+          sendCursorMove={sendCursorMove}
+        />
       </main>
     </div>
   );

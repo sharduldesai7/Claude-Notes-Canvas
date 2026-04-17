@@ -30,7 +30,7 @@ export function ThoughtMapPage() {
 
   const { data: map, isLoading: isMapLoading, error } = useThoughtMap(mapId ? parseInt(mapId) : null);
 
-  useRealtimeSync(mapId ? parseInt(mapId) : null);
+  const { remoteCursors, sendCursorMove } = useRealtimeSync(mapId ? parseInt(mapId) : null);
 
   const handleCreateDefault = () => {
     createMap({ data: { title: "My First Synaptica Map" } }, {
@@ -81,7 +81,7 @@ export function ThoughtMapPage() {
                 </div>
               </div>
             ) : map ? (
-              <Canvas map={map} />
+              <Canvas map={map} remoteCursors={remoteCursors} sendCursorMove={sendCursorMove} />
             ) : null}
           </main>
         </div>

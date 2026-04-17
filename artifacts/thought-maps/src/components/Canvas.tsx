@@ -4,6 +4,7 @@ import { ThoughtMapFull, Node } from "@workspace/api-client-react";
 import { useCreateNode } from "@/hooks/use-nodes";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { ChatMessage } from "./AIChatNode";
+import { RemoteCursor } from "@/hooks/use-realtime-sync";
 
 import { NodeCard } from "./NodeCard";
 import { AIChatNode } from "./AIChatNode";
@@ -12,10 +13,18 @@ import { AIChatBar } from "./AIChatBar";
 interface CanvasProps {
   map: ThoughtMapFull;
   readOnly?: boolean;
+  remoteCursors?: Record<string, RemoteCursor>;
+  sendCursorMove?: (x: number, y: number) => void;
 }
 
-export function Canvas({ map, readOnly = false }: CanvasProps) {
+export function Canvas({
+  map,
+  readOnly = false,
+  remoteCursors = {},
+  sendCursorMove,
+}: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastCursorSend = useRef(0);
 
   // Track whether the current drag gesture started on the canvas background
   const dragStartedOnCanvas = useRef(false);
@@ -93,6 +102,19 @@ export function Canvas({ map, readOnly = false }: CanvasProps) {
     });
   };
 
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!sendCursorMove) return;
+    const now = Date.now();
+    if (now - lastCursorSend.current < 40) return; // throttle ~25fps
+    lastCursorSend.current = now;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const worldX = (e.clientX - rect.left - pan.x) / zoom;
+    const worldY = (e.clientY - rect.top - pan.y) / zoom;
+    sendCursorMove(worldX, worldY);
+  }, [sendCursorMove, pan, zoom]);
+
   // Called by AIChatBar — creates a new ai_chat node, then starts chat stream
   const handleBarSend = useCallback(async (message: string) => {
     if (!containerRef.current) return;
@@ -164,11 +186,14 @@ export function Canvas({ map, readOnly = false }: CanvasProps) {
 
   const isBarStreaming = streamingNodeId !== null && !map.nodes.find(n => n.id === streamingNodeId);
 
+  const cursorEntries = Object.entries(remoteCursors);
+
   return (
     <div
       ref={containerRef}
       className="w-full h-full relative overflow-hidden bg-dot-grid touch-none select-none"
       onDoubleClick={handleCanvasDoubleClick}
+      onPointerMove={handlePointerMove}
     >
       <div
         className="absolute inset-0 origin-top-left"
@@ -201,6 +226,15 @@ export function Canvas({ map, readOnly = false }: CanvasProps) {
             );
           })}
         </div>
+
+        {/* Remote cursor layer — world space, no pointer events */}
+        {cursorEntries.length > 0 && (
+          <div className="absolute inset-0 z-50 pointer-events-none">
+            {cursorEntries.map(([clientId, cursor]) => (
+              <RemoteCursorDot key={clientId} cursor={cursor} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* AI Chat Bar — fixed at bottom, hidden in read-only mode */}
@@ -222,6 +256,40 @@ export function Canvas({ map, readOnly = false }: CanvasProps) {
             <kbd className="font-sans bg-muted px-1 rounded">AI bar</kbd> below to chat with Claude
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RemoteCursorDot({ cursor }: { cursor: RemoteCursor }) {
+  return (
+    <div
+      className="absolute"
+      style={{ left: cursor.x, top: cursor.y, transform: "translate(-2px, -2px)" }}
+    >
+      {/* Arrow cursor SVG */}
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }}
+      >
+        <path
+          d="M3 2L17 9.5L10.5 11.5L8 18L3 2Z"
+          fill={cursor.color}
+          stroke="white"
+          strokeWidth="1.2"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {/* Color pill below cursor */}
+      <div
+        className="absolute left-4 top-4 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white whitespace-nowrap leading-tight"
+        style={{ backgroundColor: cursor.color, boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+      >
+        Guest
       </div>
     </div>
   );
