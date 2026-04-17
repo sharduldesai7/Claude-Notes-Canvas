@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, MousePointerClick, Sparkles, Map, ArrowRight, Check } from "lucide-react";
+import { X, MousePointerClick, Sparkles, Map, ArrowRight, Check, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "synaptica_onboarded_v2";
+const STORAGE_KEY = "synaptica_onboarded_v3";
 
 export function useOnboarding() {
   const [open, setOpen] = useState(() => {
@@ -47,6 +47,13 @@ const STEPS: Step[] = [
     description:
       "Use the chat bar at the bottom of the canvas to ask Claude anything. Each conversation creates a dedicated AI Chat note — with your messages on the right and Claude's replies on the left, just like a chat.",
     hint: "Tip: keep chatting directly inside any AI Chat note to continue the conversation. Claude always has your canvas context.",
+  },
+  {
+    icon: <Users className="w-8 h-8" />,
+    title: "Share & Collaborate",
+    description:
+      "Click the share icon on any map in the sidebar to generate a shareable link. Choose view-only for read access, or edit access so collaborators can add and move notes alongside you.",
+    hint: "Tip: when multiple people are on the same map, you'll see each other's cursors moving in real time.",
   },
   {
     icon: <Check className="w-8 h-8" />,
