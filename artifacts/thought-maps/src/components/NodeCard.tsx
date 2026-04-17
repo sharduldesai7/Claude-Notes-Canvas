@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
 import { GripHorizontal, X, Sparkles, Loader2, Palette, GripVertical, ImageIcon, XCircle } from "lucide-react";
@@ -62,6 +62,7 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
   const cardWidthRef = useRef(cardWidth);
 
   const [nodeImageUrl, setNodeImageUrl] = useState<string | null | undefined>(node.imageUrl);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
@@ -178,6 +179,36 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { imageUrl: null } });
   };
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (readOnly) return;
+    const hasFiles = Array.from(e.dataTransfer.types).includes('Files');
+    if (!hasFiles) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, [readOnly]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (readOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, [readOnly]);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    if (readOnly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const objectPath = await upload(file);
+    if (objectPath) {
+      setNodeImageUrl(objectPath);
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { imageUrl: objectPath } });
+    }
+  }, [readOnly, upload, updateNode, node.mapId, node.id]);
+
   const handleAskClaude = async (question: string) => {
     let accumulated = "";
     setStreamingText("");
@@ -207,15 +238,33 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       data-node-card="true"
-      className="absolute rounded-2xl shadow-lg border border-border/50 flex flex-col group hover:shadow-xl transition-shadow"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "absolute rounded-2xl shadow-lg border flex flex-col group hover:shadow-xl transition-shadow",
+        isDragOver
+          ? "border-primary/60 ring-2 ring-primary/30 shadow-xl"
+          : "border-border/50"
+      )}
       style={{
         width: cardWidth,
         x: pos.x,
         y: pos.y,
-        backgroundColor: cardColor === '#FFFFFF' ? 'hsl(var(--card))' : cardColor,
+        backgroundColor: isDragOver
+          ? cardColor === '#FFFFFF' ? 'hsl(var(--primary)/0.04)' : cardColor
+          : cardColor === '#FFFFFF' ? 'hsl(var(--card))' : cardColor,
         touchAction: 'none',
       }}
     >
+      {/* Drop overlay */}
+      {isDragOver && !readOnly && (
+        <div className="absolute inset-0 z-30 rounded-2xl flex flex-col items-center justify-center gap-2 bg-primary/5 pointer-events-none">
+          <ImageIcon className="w-8 h-8 text-primary/60" />
+          <span className="text-xs font-medium text-primary/70">Drop image here</span>
+        </div>
+      )}
+
       {/* Delete button — hidden in read-only mode */}
       {!readOnly && (
         <Button

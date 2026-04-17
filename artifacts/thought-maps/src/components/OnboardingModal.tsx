@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, MousePointerClick, Sparkles, Map, ArrowRight, Check, Users } from "lucide-react";
+import { X, MousePointerClick, Sparkles, Map, ArrowRight, Check, Users, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "synaptica_onboarded_v3";
+const STORAGE_KEY = "synaptica_onboarded_v4";
 
 export function useOnboarding() {
   const [open, setOpen] = useState(() => {
@@ -31,7 +31,7 @@ const STEPS: Step[] = [
     icon: <Map className="w-8 h-8" />,
     title: "Welcome to Synaptica",
     description:
-      "An infinite canvas for your thoughts. Create notes, organize ideas visually, and collaborate with Claude AI — all in one place.",
+      "An infinite canvas for your thoughts. Create notes, attach images, connect ideas visually, and think alongside Claude AI — all in one place.",
     hint: undefined,
   },
   {
@@ -39,14 +39,21 @@ const STEPS: Step[] = [
     title: "Create & Move Notes",
     description:
       "Double-click anywhere on the canvas to create a new note. Drag the top handle to move it, and pull the bottom-right corner to resize.",
-    hint: "Tip: pick a note color from the palette icon on the drag handle.",
+    hint: "Tip: pick a note color from the small palette icon on the drag handle.",
+  },
+  {
+    icon: <ImageIcon className="w-8 h-8" />,
+    title: "Attach Images",
+    description:
+      "Drag an image file directly onto any note to attach it — or click the image icon on the note's drag handle to use a file picker. Claude can see and reason about attached images when you ask it a question.",
+    hint: "Tip: you can also attach images to individual messages inside an AI Chat note.",
   },
   {
     icon: <Sparkles className="w-8 h-8" />,
     title: "Chat with Claude AI",
     description:
       "Use the chat bar at the bottom of the canvas to ask Claude anything. Each conversation creates a dedicated AI Chat note — with your messages on the right and Claude's replies on the left, just like a chat.",
-    hint: "Tip: keep chatting directly inside any AI Chat note to continue the conversation. Claude always has your canvas context.",
+    hint: "Tip: keep chatting directly inside any AI Chat note to continue the conversation. Claude always has your full canvas context.",
   },
   {
     icon: <Users className="w-8 h-8" />,
@@ -59,7 +66,7 @@ const STEPS: Step[] = [
     icon: <Check className="w-8 h-8" />,
     title: "You're all set!",
     description:
-      "Use the sidebar to create multiple maps and switch between them. Collapse the sidebar with the arrow button to get more canvas space.",
+      "Use the sidebar to create multiple maps and switch between them. Collapse the sidebar with the arrow button to get more canvas space. Happy mapping!",
     hint: undefined,
   },
 ];
