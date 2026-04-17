@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { useListMapShares, useCreateMapShare, useDeleteMapShare } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListMapShares,
+  useCreateMapShare,
+  useDeleteMapShare,
+  getListMapSharesQueryKey,
+} from "@workspace/api-client-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,14 +25,31 @@ interface ShareModalProps {
 
 export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const { data: shares = [], isLoading } = useListMapShares(mapId, {
     query: { enabled: open },
   });
 
-  const { mutate: createShare, isPending: isCreating } = useCreateMapShare();
-  const { mutate: deleteShare, isPending: isDeleting } = useDeleteMapShare();
+  const { mutate: createShare, isPending: isCreating } = useCreateMapShare({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListMapSharesQueryKey(mapId) });
+      },
+      onError: () => toast({ description: "Failed to create link", variant: "destructive" }),
+    },
+  });
+
+  const { mutate: deleteShare, isPending: isDeleting } = useDeleteMapShare({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListMapSharesQueryKey(mapId) });
+        toast({ description: "Link revoked" });
+      },
+      onError: () => toast({ description: "Failed to revoke link", variant: "destructive" }),
+    },
+  });
 
   const buildShareUrl = (token: string) => {
     const origin = window.location.origin;
@@ -45,25 +68,19 @@ export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalPr
     createShare(
       { mapId, data: { permission } },
       {
-        onSuccess: () => toast({ description: `${permission === "read" ? "View-only" : "Edit"} link created` }),
-        onError: () => toast({ description: "Failed to create link", variant: "destructive" }),
+        onSuccess: () =>
+          toast({ description: `${permission === "read" ? "View-only" : "Edit"} link created` }),
       }
     );
   };
 
   const handleRevoke = (shareId: number) => {
-    deleteShare(
-      { mapId, shareId },
-      {
-        onSuccess: () => toast({ description: "Link revoked" }),
-        onError: () => toast({ description: "Failed to revoke link", variant: "destructive" }),
-      }
-    );
+    deleteShare({ mapId, shareId });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="w-4 h-4" />
@@ -79,21 +96,29 @@ export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalPr
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 gap-2"
+              className="flex-1 gap-1.5 text-sm"
               onClick={() => handleCreate("read")}
               disabled={isCreating}
             >
-              {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+              {isCreating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Eye className="w-3.5 h-3.5" />
+              )}
               New view-only link
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 gap-2"
+              className="flex-1 gap-1.5 text-sm"
               onClick={() => handleCreate("edit")}
               disabled={isCreating}
             >
-              {isCreating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Pencil className="w-3.5 h-3.5" />}
+              {isCreating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Pencil className="w-3.5 h-3.5" />
+              )}
               New edit link
             </Button>
           </div>
@@ -105,46 +130,63 @@ export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalPr
           ) : shares.length > 0 ? (
             <>
               <Separator />
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {shares.map((share) => (
                   <div
                     key={share.id}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border border-border/50"
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border border-border/50"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={share.permission === "edit" ? "default" : "secondary"}
-                          className="text-[10px] h-4 px-1.5 shrink-0"
-                        >
-                          {share.permission === "edit" ? (
-                            <><Pencil className="w-2.5 h-2.5 mr-0.5" />Edit</>
-                          ) : (
-                            <><Eye className="w-2.5 h-2.5 mr-0.5" />View</>
-                          )}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground truncate font-mono">
-                          {buildShareUrl(share.token).replace(/^https?:\/\//, "")}
-                        </span>
-                      </div>
+                    <Badge
+                      variant={share.permission === "edit" ? "default" : "secondary"}
+                      className="text-[10px] h-5 px-1.5 shrink-0 gap-0.5"
+                    >
+                      {share.permission === "edit" ? (
+                        <>
+                          <Pencil className="w-2.5 h-2.5" />
+                          Edit
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-2.5 h-2.5" />
+                          View
+                        </>
+                      )}
+                    </Badge>
+
+                    <code className="flex-1 text-xs text-muted-foreground min-w-0 truncate font-mono">
+                      {buildShareUrl(share.token)}
+                    </code>
+
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "w-7 h-7",
+                          copiedId === share.id
+                            ? "text-green-600"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        onClick={() => handleCopy(share)}
+                        title="Copy link"
+                      >
+                        {copiedId === share.id ? (
+                          <Check className="w-3.5 h-3.5" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRevoke(share.id)}
+                        disabled={isDeleting}
+                        title="Revoke link"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn("w-7 h-7 shrink-0", copiedId === share.id && "text-green-600")}
-                      onClick={() => handleCopy(share)}
-                    >
-                      {copiedId === share.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-7 h-7 shrink-0 text-destructive hover:text-destructive"
-                      onClick={() => handleRevoke(share.id)}
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
                   </div>
                 ))}
               </div>
