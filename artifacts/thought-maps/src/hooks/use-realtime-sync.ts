@@ -25,12 +25,15 @@ export function useRealtimeSync(
   const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>();
-  const unmountedRef = useRef(false);
+  // Each connect() call gets a generation number. Cleanup increments it,
+  // which invalidates any in-flight onclose so it won't schedule a stale reconnect.
+  const generationRef = useRef(0);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
 
   const connect = useCallback(() => {
-    if (!mapId || unmountedRef.current) return;
+    if (!mapId) return;
 
+    const generation = ++generationRef.current;
     const url = buildWsUrl(mapId, shareToken);
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -59,7 +62,9 @@ export function useRealtimeSync(
 
     ws.onclose = () => {
       setRemoteCursors({});
-      if (!unmountedRef.current) {
+      // Only reconnect if this generation is still the active one.
+      // If cleanup has already run (incrementing generationRef), this is stale — skip.
+      if (generationRef.current === generation) {
         reconnectRef.current = setTimeout(connect, 3000);
       }
     };
@@ -70,14 +75,16 @@ export function useRealtimeSync(
   }, [mapId, shareToken, queryClient]);
 
   useEffect(() => {
-    unmountedRef.current = false;
     connect();
 
     return () => {
-      unmountedRef.current = true;
+      // Increment generation — any pending onclose for the current WS will see the
+      // mismatch and won't schedule a reconnect.
+      generationRef.current++;
       clearTimeout(reconnectRef.current);
       wsRef.current?.close();
       wsRef.current = null;
+      setRemoteCursors({});
     };
   }, [connect]);
 
