@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, Check, X, Settings, LogOut, ChevronLeft, ChevronRight, Map } from "lucide-react";
+import { Plus, Trash2, Edit2, Check, X, Settings, LogOut, ChevronLeft, ChevronRight, Map, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { SynapticaLogo } from "@/components/SynapticaLogo";
 import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ShareModal } from "@/components/ShareModal";
 
 const COLLAPSED_KEY = "synaptica_sidebar_collapsed";
 
@@ -28,6 +29,7 @@ export function MapSidebar() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "1");
+  const [sharingMap, setSharingMap] = useState<{ id: number; title: string } | null>(null);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -61,6 +63,7 @@ export function MapSidebar() {
   };
 
   return (
+    <>
     <motion.div
       animate={{ width: collapsed ? 56 : 288 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -232,6 +235,18 @@ export function MapSidebar() {
                               className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setSharingMap({ id: map.id, title: map.title });
+                              }}
+                              title="Share map"
+                            >
+                              <Link2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setEditTitle(map.title);
                                 setEditingId(map.id);
                               }}
@@ -318,5 +333,15 @@ export function MapSidebar() {
         )}
       </div>
     </motion.div>
+
+    {sharingMap && (
+      <ShareModal
+        mapId={sharingMap.id}
+        mapTitle={sharingMap.title}
+        open={!!sharingMap}
+        onOpenChange={(open) => { if (!open) setSharingMap(null); }}
+      />
+    )}
+    </>
   );
 }
