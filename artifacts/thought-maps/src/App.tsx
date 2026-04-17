@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThoughtMapPage } from "@/pages/ThoughtMapPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SharedMapPage } from "@/pages/SharedMapPage";
 import NotFound from "@/pages/not-found";
 import { ClerkProvider, SignIn, SignUp, useAuth, Show } from "@clerk/react";
 import { queryClient } from "@/lib/queryClient";
@@ -79,6 +80,7 @@ function Router() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/m" component={ThoughtMapPage} />
       <Route path="/m/:mapId" component={ThoughtMapPage} />
+      <Route path="/s/:token" component={SharedMapPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/sign-in/*?">
         <div className="h-screen w-screen flex items-center justify-center bg-dot-grid">

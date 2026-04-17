@@ -259,6 +259,89 @@ export const AskClaudeBody = zod.object({
 });
 
 /**
+ * @summary List all share links for a map
+ */
+export const ListMapSharesParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const ListMapSharesResponseItem = zod.object({
+  id: zod.number(),
+  mapId: zod.number(),
+  token: zod.string(),
+  permission: zod.string(),
+  createdBy: zod.string(),
+  createdAt: zod.date(),
+});
+export const ListMapSharesResponse = zod.array(ListMapSharesResponseItem);
+
+/**
+ * @summary Create a share link
+ */
+export const CreateMapShareParams = zod.object({
+  mapId: zod.coerce.number(),
+});
+
+export const CreateMapShareBody = zod.object({
+  permission: zod.enum(["read", "edit"]),
+});
+
+/**
+ * @summary Revoke a share link
+ */
+export const DeleteMapShareParams = zod.object({
+  mapId: zod.coerce.number(),
+  shareId: zod.coerce.number(),
+});
+
+/**
+ * @summary Resolve a share token and return the map
+ */
+export const GetSharedMapParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetSharedMapResponse = zod.object({
+  map: zod.object({
+    id: zod.number(),
+    userId: zod.string(),
+    title: zod.string(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+    nodes: zod.array(
+      zod.object({
+        id: zod.number(),
+        mapId: zod.number(),
+        title: zod.string().nullish(),
+        nodeType: zod.string(),
+        content: zod.string(),
+        chatHistory: zod.string().nullish(),
+        positionX: zod.number(),
+        positionY: zod.number(),
+        width: zod.number(),
+        height: zod.number(),
+        color: zod.string().nullish(),
+        claudeResponse: zod.string().nullish(),
+        isProcessing: zod.boolean(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+    ),
+    connections: zod.array(
+      zod.object({
+        id: zod.number(),
+        mapId: zod.number(),
+        fromNodeId: zod.number(),
+        toNodeId: zod.number(),
+        createdAt: zod.date(),
+      }),
+    ),
+  }),
+  permission: zod.string(),
+  shareId: zod.number(),
+});
+
+/**
  * @summary Get the current user's settings
  */
 export const GetUserSettingsResponse = zod.object({

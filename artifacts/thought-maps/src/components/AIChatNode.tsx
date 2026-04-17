@@ -32,11 +32,12 @@ interface AIChatNodeProps {
   externalStreamingText?: string;
   /** Optimistic history from Canvas while DB refetch is in flight */
   pendingHistory?: ChatMessage[];
+  readOnly?: boolean;
 }
 
 const DEFAULT_WIDTH = 320;
 
-export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, externalStreamingText, pendingHistory }: AIChatNodeProps) {
+export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, externalStreamingText, pendingHistory, readOnly = false }: AIChatNodeProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [messages, setMessages] = useState<ChatMessage[]>(() => parseChatHistory(node.chatHistory));
   const [streamingText, setStreamingText] = useState("");
@@ -119,15 +120,17 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
       className="absolute rounded-2xl shadow-lg border border-primary/30 flex flex-col group hover:shadow-xl transition-shadow bg-card"
       style={{ width: cardWidth, x: pos.x, y: pos.y, touchAction: "none" }}
     >
-      {/* Delete */}
-      <Button
-        variant="destructive"
-        size="icon"
-        className="absolute -top-3 -right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm"
-        onClick={(e) => { e.stopPropagation(); deleteNode({ mapId: node.mapId, nodeId: node.id }); }}
-      >
-        <X className="w-3.5 h-3.5" />
-      </Button>
+      {/* Delete — hidden in read-only mode */}
+      {!readOnly && (
+        <Button
+          variant="destructive"
+          size="icon"
+          className="absolute -top-3 -right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm"
+          onClick={(e) => { e.stopPropagation(); deleteNode({ mapId: node.mapId, nodeId: node.id }); }}
+        >
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      )}
 
       {/* Drag handle */}
       <div
@@ -184,30 +187,32 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-border/50 p-2 flex items-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`;
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="Continue chatting…"
-          rows={1}
-          className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground font-serif leading-relaxed min-h-[28px] max-h-20"
-        />
-        <Button
-          size="icon"
-          className="h-7 w-7 rounded-full shrink-0"
-          onClick={handleSend}
-          disabled={!input.trim() || isStreaming}
-        >
-          <Send className="w-3 h-3" />
-        </Button>
-      </div>
+      {/* Input — hidden in read-only mode */}
+      {!readOnly && (
+        <div className="border-t border-border/50 p-2 flex items-end gap-2" onPointerDown={(e) => e.stopPropagation()}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`;
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Continue chatting…"
+            rows={1}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground font-serif leading-relaxed min-h-[28px] max-h-20"
+          />
+          <Button
+            size="icon"
+            className="h-7 w-7 rounded-full shrink-0"
+            onClick={handleSend}
+            disabled={!input.trim() || isStreaming}
+          >
+            <Send className="w-3 h-3" />
+          </Button>
+        </div>
+      )}
     </motion.div>
   );
 }

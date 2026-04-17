@@ -13,6 +13,7 @@ interface NodeCardProps {
   node: Node;
   zoom: number;
   otherNodeIds: number[];
+  readOnly?: boolean;
 }
 
 interface ClaudeEntry {
@@ -45,7 +46,7 @@ function parseHistory(raw: string | null | undefined): ClaudeEntry[] {
   }
 }
 
-export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
+export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCardProps) {
   const [pos, setPos] = useState({ x: node.positionX, y: node.positionY });
   const [content, setContent] = useState(node.content);
   const [title, setTitle] = useState(node.title || "");
@@ -193,18 +194,20 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         touchAction: 'none',
       }}
     >
-      {/* Delete button */}
-      <Button
-        variant="destructive"
-        size="icon"
-        className="absolute -top-3 -right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          deleteNode({ mapId: node.mapId, nodeId: node.id });
-        }}
-      >
-        <X className="w-3.5 h-3.5" />
-      </Button>
+      {/* Delete button — hidden in read-only mode */}
+      {!readOnly && (
+        <Button
+          variant="destructive"
+          size="icon"
+          className="absolute -top-3 -right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteNode({ mapId: node.mapId, nodeId: node.id });
+          }}
+        >
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      )}
 
       {/* Drag handle */}
       <div
@@ -251,12 +254,12 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         )}
       </div>
 
-      {/* Editable title */}
+      {/* Editable title — static in read-only mode */}
       <div
         className="px-4 pt-3 pb-0"
         onPointerDown={(e) => e.stopPropagation()}
       >
-        {editingTitle ? (
+        {!readOnly && editingTitle ? (
           <input
             ref={titleInputRef}
             value={title}
@@ -273,8 +276,13 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
           />
         ) : (
           <button
-            className="text-xs font-semibold text-foreground/40 hover:text-foreground/70 transition-colors tracking-wide text-left truncate w-full"
+            className={cn(
+              "text-xs font-semibold text-foreground/40 tracking-wide text-left truncate w-full",
+              !readOnly && "hover:text-foreground/70 transition-colors cursor-pointer",
+              readOnly && "cursor-default"
+            )}
             onClick={() => {
+              if (readOnly) return;
               setEditingTitle(true);
               setTimeout(() => titleInputRef.current?.select(), 0);
             }}
@@ -337,27 +345,31 @@ export function NodeCard({ node, zoom, otherNodeIds }: NodeCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Note textarea */}
+      {/* Note textarea — read-only when in view-only mode */}
       <div className="px-4 pt-2 pb-4 flex flex-col">
         <textarea
           ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onBlur={handleContentBlur}
+          onChange={(e) => !readOnly && setContent(e.target.value)}
+          onBlur={!readOnly ? handleContentBlur : undefined}
           onPointerDown={(e) => e.stopPropagation()}
-          className="w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed"
-          placeholder="Jot a thought…"
+          readOnly={readOnly}
+          className={cn(
+            "w-full bg-transparent border-none outline-none resize-none min-h-[40px] text-base text-foreground placeholder:text-foreground/50 font-serif leading-relaxed",
+            readOnly && "cursor-default"
+          )}
+          placeholder={readOnly ? "" : "Jot a thought…"}
         />
       </div>
 
-      {/* Resize grip */}
-      <div
+      {/* Resize grip — hidden in read-only mode */}
+      {!readOnly && <div
         onMouseDown={handleResizeMouseDown}
         className="absolute bottom-1 right-1 w-5 h-5 flex items-center justify-center cursor-se-resize opacity-0 group-hover:opacity-40 hover:!opacity-80 transition-opacity"
         title="Drag to resize"
       >
         <GripVertical className="w-3.5 h-3.5 rotate-45 text-foreground/60" />
-      </div>
+      </div>}
     </motion.div>
   );
 }

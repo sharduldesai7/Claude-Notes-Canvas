@@ -17,6 +17,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _shareToken: string | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -39,6 +40,15 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Set a share token that is attached to every request as an
+ * `X-Share-Token` header. Used when viewing/editing a map via a share link.
+ * Pass `null` to clear the token.
+ */
+export function setShareToken(token: string | null): void {
+  _shareToken = token;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -353,6 +363,10 @@ export async function customFetch<T = unknown>(
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
     }
+  }
+
+  if (_shareToken && !headers.has("x-share-token")) {
+    headers.set("x-share-token", _shareToken);
   }
 
   const requestInfo = { method, url: resolveUrl(input) };

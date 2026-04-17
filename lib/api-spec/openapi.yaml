@@ -339,6 +339,89 @@ paths:
           content:
             text/event-stream: {}
 
+  /thought-maps/{mapId}/shares:
+    get:
+      operationId: listMapShares
+      tags: [shares]
+      summary: List all share links for a map
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of share links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MapShare"
+    post:
+      operationId: createMapShare
+      tags: [shares]
+      summary: Create a share link
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShareBody"
+      responses:
+        "201":
+          description: Created share link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapShare"
+
+  /thought-maps/{mapId}/shares/{shareId}:
+    delete:
+      operationId: deleteMapShare
+      tags: [shares]
+      summary: Revoke a share link
+      parameters:
+        - name: mapId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+
+  /shared/{token}:
+    get:
+      operationId: getSharedMap
+      tags: [shares]
+      summary: Resolve a share token and return the map
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shared map data with permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedMapResponse"
+
   /user/settings:
     get:
       operationId: getUserSettings
@@ -646,6 +729,53 @@ components:
         customBaseUrl:
           type: string
           nullable: true
+
+    MapShare:
+      type: object
+      properties:
+        id:
+          type: integer
+        mapId:
+          type: integer
+        token:
+          type: string
+        permission:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - mapId
+        - token
+        - permission
+        - createdBy
+        - createdAt
+
+    CreateShareBody:
+      type: object
+      properties:
+        permission:
+          type: string
+          enum: [read, edit]
+      required:
+        - permission
+
+    SharedMapResponse:
+      type: object
+      properties:
+        map:
+          $ref: "#/components/schemas/ThoughtMapFull"
+        permission:
+          type: string
+        shareId:
+          type: integer
+      required:
+        - map
+        - permission
+        - shareId
 
     ApiError:
       type: object

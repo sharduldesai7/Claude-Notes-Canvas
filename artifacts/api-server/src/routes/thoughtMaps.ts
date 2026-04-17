@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable } from "@workspace/db";
+import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middlewares/auth";
@@ -44,14 +44,32 @@ router.post("/", async (req: any, res) => {
   }
 });
 
-// Get a thought map with nodes and connections (only own maps)
+// Get a thought map with nodes and connections (own maps or valid share token)
 router.get("/:id", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [map] = await db
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+
+    let map: typeof thoughtMapsTable.$inferSelect | undefined;
+
+    const [ownedMap] = await db
       .select()
       .from(thoughtMapsTable)
       .where(and(eq(thoughtMapsTable.id, id), eq(thoughtMapsTable.userId, req.userId)));
+
+    if (ownedMap) {
+      map = ownedMap;
+    } else if (shareToken) {
+      const [share] = await db
+        .select()
+        .from(mapSharesTable)
+        .where(and(eq(mapSharesTable.token, shareToken), eq(mapSharesTable.mapId, id)));
+      if (share) {
+        const [sharedMap] = await db.select().from(thoughtMapsTable).where(eq(thoughtMapsTable.id, id));
+        map = sharedMap;
+      }
+    }
+
     if (!map) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -105,20 +123,39 @@ router.delete("/:id", async (req: any, res) => {
   }
 });
 
-// Helper: verify map belongs to user
-async function verifyMapOwnership(mapId: number, userId: string): Promise<boolean> {
+// Helper: verify map belongs to user OR is accessible via a share token
+// minPermission: 'read' means any valid share is OK; 'edit' requires edit-permission share
+async function verifyMapOwnership(
+  mapId: number,
+  userId: string,
+  shareToken?: string,
+  minPermission: "read" | "edit" = "edit"
+): Promise<boolean> {
   const [map] = await db
     .select()
     .from(thoughtMapsTable)
     .where(and(eq(thoughtMapsTable.id, mapId), eq(thoughtMapsTable.userId, userId)));
-  return !!map;
+  if (map) return true;
+
+  if (shareToken) {
+    const [share] = await db
+      .select()
+      .from(mapSharesTable)
+      .where(and(eq(mapSharesTable.token, shareToken), eq(mapSharesTable.mapId, mapId)));
+    if (share) {
+      if (minPermission === "read") return true;
+      return share.permission === "edit";
+    }
+  }
+  return false;
 }
 
 // List nodes in a thought map
 router.get("/:mapId/nodes", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "read")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -134,7 +171,8 @@ router.get("/:mapId/nodes", async (req: any, res) => {
 router.post("/:mapId/nodes", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -183,7 +221,8 @@ router.patch("/:mapId/nodes/:nodeId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -209,7 +248,8 @@ router.delete("/:mapId/nodes/:nodeId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -232,7 +272,8 @@ router.delete("/:mapId/nodes/:nodeId", async (req: any, res) => {
 router.get("/:mapId/connections", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "read")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -248,7 +289,8 @@ router.get("/:mapId/connections", async (req: any, res) => {
 router.post("/:mapId/connections", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -273,7 +315,8 @@ router.delete("/:mapId/connections/:connectionId", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const connectionId = parseInt(req.params.connectionId);
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -303,7 +346,8 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
       res.status(400).json({ error: "message is required" });
       return;
     }
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -407,7 +451,8 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
       return;
     }
 
-    if (!await verifyMapOwnership(mapId, req.userId)) {
+    const shareToken = req.headers["x-share-token"] as string | undefined;
+    if (!await verifyMapOwnership(mapId, req.userId, shareToken, "edit")) {
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -497,5 +542,74 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
     }
   }
 });
+
+// ── Share management routes ──────────────────────────────────────────────────
+
+// List share links for a map (owner only)
+router.get("/:mapId/shares", async (req: any, res) => {
+  try {
+    const mapId = parseInt(req.params.mapId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const shares = await db.select().from(mapSharesTable).where(eq(mapSharesTable.mapId, mapId));
+    res.json(shares);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to list shares" });
+  }
+});
+
+// Create a share link (owner only)
+router.post("/:mapId/shares", async (req: any, res) => {
+  try {
+    const mapId = parseInt(req.params.mapId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const { permission } = req.body;
+    if (!permission || !["read", "edit"].includes(permission)) {
+      res.status(400).json({ error: "permission must be 'read' or 'edit'" });
+      return;
+    }
+    const token = generateShareToken();
+    const [share] = await db
+      .insert(mapSharesTable)
+      .values({ mapId, token, permission, createdBy: req.userId })
+      .returning();
+    res.status(201).json(share);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to create share" });
+  }
+});
+
+// Revoke a share link (owner only)
+router.delete("/:mapId/shares/:shareId", async (req: any, res) => {
+  try {
+    const mapId = parseInt(req.params.mapId);
+    const shareId = parseInt(req.params.shareId);
+    if (!await verifyMapOwnership(mapId, req.userId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await db.delete(mapSharesTable).where(and(eq(mapSharesTable.id, shareId), eq(mapSharesTable.mapId, mapId)));
+    res.status(204).send();
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to revoke share" });
+  }
+});
+
+function generateShareToken(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 32; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
 
 export default router;

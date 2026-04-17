@@ -116,6 +116,33 @@ export interface UpdateUserSettingsBody {
   customBaseUrl?: string | null;
 }
 
+export interface MapShare {
+  id: number;
+  mapId: number;
+  token: string;
+  permission: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export type CreateShareBodyPermission =
+  (typeof CreateShareBodyPermission)[keyof typeof CreateShareBodyPermission];
+
+export const CreateShareBodyPermission = {
+  read: "read",
+  edit: "edit",
+} as const;
+
+export interface CreateShareBody {
+  permission: CreateShareBodyPermission;
+}
+
+export interface SharedMapResponse {
+  map: ThoughtMapFull;
+  permission: string;
+  shareId: number;
+}
+
 export interface ApiError {
   error: string;
 }

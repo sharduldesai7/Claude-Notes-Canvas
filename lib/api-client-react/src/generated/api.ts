@@ -23,9 +23,12 @@ import type {
   Connection,
   CreateConnectionBody,
   CreateNodeBody,
+  CreateShareBody,
   CreateThoughtMapBody,
   HealthStatus,
+  MapShare,
   Node,
+  SharedMapResponse,
   ThoughtMap,
   ThoughtMapFull,
   UpdateNodeBody,
@@ -1317,6 +1320,352 @@ export const useAskClaude = <
 > => {
   return useMutation(getAskClaudeMutationOptions(options));
 };
+
+/**
+ * @summary List all share links for a map
+ */
+export const getListMapSharesUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/shares`;
+};
+
+export const listMapShares = async (
+  mapId: number,
+  options?: RequestInit,
+): Promise<MapShare[]> => {
+  return customFetch<MapShare[]>(getListMapSharesUrl(mapId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMapSharesQueryKey = (mapId: number) => {
+  return [`/api/thought-maps/${mapId}/shares`] as const;
+};
+
+export const getListMapSharesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMapShares>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMapShares>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMapSharesQueryKey(mapId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMapShares>>> = ({
+    signal,
+  }) => listMapShares(mapId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!mapId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMapShares>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMapSharesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMapShares>>
+>;
+export type ListMapSharesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all share links for a map
+ */
+
+export function useListMapShares<
+  TData = Awaited<ReturnType<typeof listMapShares>>,
+  TError = ErrorType<unknown>,
+>(
+  mapId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listMapShares>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMapSharesQueryOptions(mapId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a share link
+ */
+export const getCreateMapShareUrl = (mapId: number) => {
+  return `/api/thought-maps/${mapId}/shares`;
+};
+
+export const createMapShare = async (
+  mapId: number,
+  createShareBody: CreateShareBody,
+  options?: RequestInit,
+): Promise<MapShare> => {
+  return customFetch<MapShare>(getCreateMapShareUrl(mapId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createShareBody),
+  });
+};
+
+export const getCreateMapShareMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMapShare>>,
+    TError,
+    { mapId: number; data: BodyType<CreateShareBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMapShare>>,
+  TError,
+  { mapId: number; data: BodyType<CreateShareBody> },
+  TContext
+> => {
+  const mutationKey = ["createMapShare"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMapShare>>,
+    { mapId: number; data: BodyType<CreateShareBody> }
+  > = (props) => {
+    const { mapId, data } = props ?? {};
+
+    return createMapShare(mapId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateMapShareMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMapShare>>
+>;
+export type CreateMapShareMutationBody = BodyType<CreateShareBody>;
+export type CreateMapShareMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a share link
+ */
+export const useCreateMapShare = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMapShare>>,
+    TError,
+    { mapId: number; data: BodyType<CreateShareBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createMapShare>>,
+  TError,
+  { mapId: number; data: BodyType<CreateShareBody> },
+  TContext
+> => {
+  return useMutation(getCreateMapShareMutationOptions(options));
+};
+
+/**
+ * @summary Revoke a share link
+ */
+export const getDeleteMapShareUrl = (mapId: number, shareId: number) => {
+  return `/api/thought-maps/${mapId}/shares/${shareId}`;
+};
+
+export const deleteMapShare = async (
+  mapId: number,
+  shareId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteMapShareUrl(mapId, shareId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteMapShareMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMapShare>>,
+    TError,
+    { mapId: number; shareId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMapShare>>,
+  TError,
+  { mapId: number; shareId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteMapShare"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMapShare>>,
+    { mapId: number; shareId: number }
+  > = (props) => {
+    const { mapId, shareId } = props ?? {};
+
+    return deleteMapShare(mapId, shareId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMapShareMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMapShare>>
+>;
+
+export type DeleteMapShareMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Revoke a share link
+ */
+export const useDeleteMapShare = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMapShare>>,
+    TError,
+    { mapId: number; shareId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMapShare>>,
+  TError,
+  { mapId: number; shareId: number },
+  TContext
+> => {
+  return useMutation(getDeleteMapShareMutationOptions(options));
+};
+
+/**
+ * @summary Resolve a share token and return the map
+ */
+export const getGetSharedMapUrl = (token: string) => {
+  return `/api/shared/${token}`;
+};
+
+export const getSharedMap = async (
+  token: string,
+  options?: RequestInit,
+): Promise<SharedMapResponse> => {
+  return customFetch<SharedMapResponse>(getGetSharedMapUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSharedMapQueryKey = (token: string) => {
+  return [`/api/shared/${token}`] as const;
+};
+
+export const getGetSharedMapQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSharedMap>>,
+  TError = ErrorType<unknown>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSharedMap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSharedMapQueryKey(token);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSharedMap>>> = ({
+    signal,
+  }) => getSharedMap(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSharedMap>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSharedMapQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSharedMap>>
+>;
+export type GetSharedMapQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Resolve a share token and return the map
+ */
+
+export function useGetSharedMap<
+  TData = Awaited<ReturnType<typeof getSharedMap>>,
+  TError = ErrorType<unknown>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSharedMap>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSharedMapQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get the current user's settings

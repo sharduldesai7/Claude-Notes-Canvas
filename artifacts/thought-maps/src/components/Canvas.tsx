@@ -11,9 +11,10 @@ import { AIChatBar } from "./AIChatBar";
 
 interface CanvasProps {
   map: ThoughtMapFull;
+  readOnly?: boolean;
 }
 
-export function Canvas({ map }: CanvasProps) {
+export function Canvas({ map, readOnly = false }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Track whether the current drag gesture started on the canvas background
@@ -78,6 +79,7 @@ export function Canvas({ map }: CanvasProps) {
   );
 
   const handleCanvasDoubleClick = (e: React.MouseEvent) => {
+    if (readOnly) return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-node-card]')) return;
 
@@ -190,9 +192,10 @@ export function Canvas({ map }: CanvasProps) {
                     isStreaming={streamingNodeId === node.id}
                     externalStreamingText={nodeStreamingTexts[node.id]}
                     pendingHistory={nodePendingHistories[node.id]}
+                    readOnly={readOnly}
                   />
                 ) : (
-                  <NodeCard node={node} zoom={zoom} otherNodeIds={otherNodeIds} />
+                  <NodeCard node={node} zoom={zoom} otherNodeIds={otherNodeIds} readOnly={readOnly} />
                 )}
               </div>
             );
@@ -200,8 +203,8 @@ export function Canvas({ map }: CanvasProps) {
         </div>
       </div>
 
-      {/* AI Chat Bar — fixed at bottom */}
-      <AIChatBar onSend={handleBarSend} isStreaming={isBarStreaming} />
+      {/* AI Chat Bar — fixed at bottom, hidden in read-only mode */}
+      {!readOnly && <AIChatBar onSend={handleBarSend} isStreaming={isBarStreaming} />}
 
       {/* HUD */}
       <div className="absolute bottom-20 right-6 flex items-center gap-2 bg-card/80 backdrop-blur-md p-2 rounded-xl shadow-lg border border-border/50 pointer-events-none">

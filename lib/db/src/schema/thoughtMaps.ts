@@ -59,3 +59,16 @@ export const userSettingsTable = pgTable("user_settings", {
 export const insertUserSettingsSchema = createInsertSchema(userSettingsTable).omit({ updatedAt: true });
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type UserSettings = typeof userSettingsTable.$inferSelect;
+
+export const mapSharesTable = pgTable("map_shares", {
+  id: serial("id").primaryKey(),
+  mapId: integer("map_id").notNull().references(() => thoughtMapsTable.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  permission: text("permission").notNull().default("read"), // 'read' | 'edit'
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMapShareSchema = createInsertSchema(mapSharesTable).omit({ id: true, createdAt: true });
+export type InsertMapShare = z.infer<typeof insertMapShareSchema>;
+export type MapShare = typeof mapSharesTable.$inferSelect;
