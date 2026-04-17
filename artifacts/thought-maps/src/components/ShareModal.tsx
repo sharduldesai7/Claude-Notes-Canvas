@@ -80,7 +80,7 @@ export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="w-4 h-4" />
@@ -136,26 +136,27 @@ export function ShareModal({ mapId, mapTitle, open, onOpenChange }: ShareModalPr
                     key={share.id}
                     className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/50 border border-border/50"
                   >
-                    <Badge
-                      variant={share.permission === "edit" ? "default" : "secondary"}
-                      className="text-[10px] h-5 px-1.5 shrink-0 gap-0.5"
-                    >
-                      {share.permission === "edit" ? (
-                        <>
-                          <Pencil className="w-2.5 h-2.5" />
-                          Edit
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="w-2.5 h-2.5" />
-                          View
-                        </>
-                      )}
-                    </Badge>
-
-                    <code className="flex-1 text-xs text-muted-foreground min-w-0 truncate font-mono">
-                      {buildShareUrl(share.token)}
-                    </code>
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                      <Badge
+                        variant={share.permission === "edit" ? "default" : "secondary"}
+                        className="text-[10px] h-5 px-1.5 shrink-0 gap-0.5"
+                      >
+                        {share.permission === "edit" ? (
+                          <>
+                            <Pencil className="w-2.5 h-2.5" />
+                            Edit
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-2.5 h-2.5" />
+                            View
+                          </>
+                        )}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate">
+                        Anyone with this link can {share.permission === "edit" ? "edit" : "view"}
+                      </span>
+                    </div>
 
                     <div className="flex items-center gap-0.5 shrink-0">
                       <Button
