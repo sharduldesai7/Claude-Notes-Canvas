@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
-import { GripHorizontal, X, Sparkles, Loader2, Palette, GripVertical } from "lucide-react";
+import { GripHorizontal, X, Sparkles, Loader2, Palette, GripVertical, ImageIcon, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUpdateNode, useDeleteNode } from "@/hooks/use-nodes";
 import { useAskClaudeStream } from "@/hooks/use-ask-claude";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -60,13 +61,17 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
   const [cardWidth, setCardWidth] = useState(node.width || DEFAULT_WIDTH);
   const cardWidthRef = useRef(cardWidth);
 
+  const [nodeImageUrl, setNodeImageUrl] = useState<string | null | undefined>(node.imageUrl);
+
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
   const { generate, isGenerating } = useAskClaudeStream();
+  const { upload, isUploading } = useImageUpload();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPos({ x: node.positionX, y: node.positionY });
@@ -79,12 +84,13 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
       setCardWidth(node.width);
       cardWidthRef.current = node.width;
     }
+    setNodeImageUrl(node.imageUrl);
     if (lastSeenNodeId.current !== node.id) {
       setHistory(parseHistory(node.claudeResponse));
       setTitle(node.title || "");
       lastSeenNodeId.current = node.id;
     }
-  }, [node.id, node.content, node.claudeResponse, node.color, node.width, node.title]);
+  }, [node.id, node.content, node.claudeResponse, node.color, node.width, node.title, node.imageUrl]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -156,6 +162,22 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
     updateNode({ mapId: node.mapId, nodeId: node.id, data: { color } });
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const objectPath = await upload(file);
+    if (objectPath) {
+      setNodeImageUrl(objectPath);
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { imageUrl: objectPath } });
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setNodeImageUrl(null);
+    updateNode({ mapId: node.mapId, nodeId: node.id, data: { imageUrl: null } });
+  };
+
   const handleAskClaude = async (question: string) => {
     let accumulated = "";
     setStreamingText("");
@@ -216,7 +238,7 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
       >
         <GripHorizontal className="w-5 h-5 text-foreground/40" />
 
-        <div className="absolute left-2" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="absolute left-2 flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -245,6 +267,18 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
               </div>
             </PopoverContent>
           </Popover>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-5 h-5 rounded-full hover:bg-black/10"
+              title={nodeImageUrl ? "Replace image" : "Attach image"}
+              disabled={isUploading}
+              onClick={() => imageInputRef.current?.click()}
+            >
+              {isUploading ? <Loader2 className="w-3 h-3 animate-spin text-foreground/50" /> : <ImageIcon className="w-3 h-3 text-foreground/50" />}
+            </Button>
+          )}
         </div>
 
         {isGenerating && (
@@ -345,6 +379,25 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
         )}
       </AnimatePresence>
 
+      {/* Image attachment display */}
+      {nodeImageUrl && (
+        <div className="relative mx-4 mt-1 mb-0" onPointerDown={(e) => e.stopPropagation()}>
+          <img
+            src={`/api/storage${nodeImageUrl}`}
+            alt="Attached"
+            className="w-full rounded-xl object-cover max-h-48"
+          />
+          {!readOnly && (
+            <button
+              onClick={handleRemoveImage}
+              className="absolute top-1.5 right-1.5 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Note textarea — read-only when in view-only mode */}
       <div className="px-4 pt-2 pb-4 flex flex-col">
         <textarea
@@ -361,6 +414,15 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
           placeholder={readOnly ? "" : "Jot a thought…"}
         />
       </div>
+
+      {/* Hidden image file input */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageUpload}
+      />
 
       {/* Resize grip — hidden in read-only mode */}
       {!readOnly && <div

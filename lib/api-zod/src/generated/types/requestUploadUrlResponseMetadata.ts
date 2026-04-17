@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ChatBody {
-  message: string;
-  contextNodeIds?: number[];
-  imageObjectPath?: string | null;
-}
+export type RequestUploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};

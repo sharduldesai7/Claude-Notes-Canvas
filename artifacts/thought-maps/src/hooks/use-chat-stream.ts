@@ -12,6 +12,7 @@ export function useChatStream() {
     contextNodeIds: number[],
     onChunk: (text: string) => void,
     onDone: (history: ChatMessage[]) => void,
+    imageObjectPath?: string | null,
   ) => {
     setStreamingNodeId(nodeId);
     setStreamingText("");
@@ -20,7 +21,7 @@ export function useChatStream() {
       const res = await fetch(`/api/thought-maps/${mapId}/nodes/${nodeId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, contextNodeIds }),
+        body: JSON.stringify({ message, contextNodeIds, ...(imageObjectPath ? { imageObjectPath } : {}) }),
       });
       if (!res.ok || !res.body) return;
 

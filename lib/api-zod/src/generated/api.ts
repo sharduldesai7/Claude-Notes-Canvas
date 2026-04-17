@@ -60,6 +60,7 @@ export const GetThoughtMapResponse = zod.object({
       width: zod.number(),
       height: zod.number(),
       color: zod.string().nullish(),
+      imageUrl: zod.string().nullish(),
       claudeResponse: zod.string().nullish(),
       isProcessing: zod.boolean(),
       createdAt: zod.date(),
@@ -122,6 +123,7 @@ export const ListNodesResponseItem = zod.object({
   width: zod.number(),
   height: zod.number(),
   color: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean(),
   createdAt: zod.date(),
@@ -166,6 +168,7 @@ export const UpdateNodeBody = zod.object({
   width: zod.number().optional(),
   height: zod.number().optional(),
   color: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean().optional(),
 });
@@ -182,6 +185,7 @@ export const UpdateNodeResponse = zod.object({
   width: zod.number(),
   height: zod.number(),
   color: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
   claudeResponse: zod.string().nullish(),
   isProcessing: zod.boolean(),
   createdAt: zod.date(),
@@ -243,6 +247,7 @@ export const ChatWithNodeParams = zod.object({
 export const ChatWithNodeBody = zod.object({
   message: zod.string(),
   contextNodeIds: zod.array(zod.number()).optional(),
+  imageObjectPath: zod.string().nullish(),
 });
 
 /**
@@ -321,6 +326,7 @@ export const GetSharedMapResponse = zod.object({
         width: zod.number(),
         height: zod.number(),
         color: zod.string().nullish(),
+        imageUrl: zod.string().nullish(),
         claudeResponse: zod.string().nullish(),
         isProcessing: zod.boolean(),
         createdAt: zod.date(),

@@ -176,12 +176,13 @@ export function Canvas({
     message: string,
     onChunk: (t: string) => void,
     onDone: (history: ChatMessage[]) => void,
+    imageObjectPath?: string | null,
   ) => {
     const otherNodeIds = map.nodes
       .filter((n) => n.id !== nodeId && n.nodeType === "note")
       .map((n) => n.id);
 
-    await sendMessage(map.id, nodeId, message, otherNodeIds, onChunk, onDone);
+    await sendMessage(map.id, nodeId, message, otherNodeIds, onChunk, onDone, imageObjectPath);
   }, [map.id, map.nodes, sendMessage]);
 
   const isBarStreaming = streamingNodeId !== null && !map.nodes.find(n => n.id === streamingNodeId);

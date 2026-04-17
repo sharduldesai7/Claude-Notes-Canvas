@@ -26,6 +26,7 @@ export const nodesTable = pgTable("nodes", {
   width: real("width").notNull().default(280),
   height: real("height").notNull().default(160),
   color: text("color"),
+  imageUrl: text("image_url"),
   claudeResponse: text("claude_response"),
   isProcessing: boolean("is_processing").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),

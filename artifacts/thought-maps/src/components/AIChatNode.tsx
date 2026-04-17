@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { Node } from "@workspace/api-client-react";
 import { useDrag } from "@use-gesture/react";
-import { GripHorizontal, X, Sparkles, Loader2, Send, GripVertical } from "lucide-react";
+import { GripHorizontal, X, Sparkles, Loader2, Send, GripVertical, Paperclip, XCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUpdateNode, useDeleteNode } from "@/hooks/use-nodes";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+  imageUrl?: string;
 }
 
 function parseChatHistory(raw: string | null | undefined): ChatMessage[] {
@@ -27,7 +29,7 @@ interface AIChatNodeProps {
   node: Node;
   zoom: number;
   otherNodeIds: number[];
-  onChat: (nodeId: number, message: string, onChunk: (t: string) => void, onDone: (history: ChatMessage[]) => void) => void;
+  onChat: (nodeId: number, message: string, onChunk: (t: string) => void, onDone: (history: ChatMessage[]) => void, imageObjectPath?: string | null) => void;
   isStreaming: boolean;
   externalStreamingText?: string;
   /** Optimistic history from Canvas while DB refetch is in flight */
@@ -50,12 +52,17 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
   const cardWidthRef = useRef(cardWidth);
   const cardHeightRef = useRef(cardHeight);
 
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
+
   const lastSeenNodeId = useRef(node.id);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const { mutate: updateNode } = useUpdateNode();
   const { mutate: deleteNode } = useDeleteNode();
+  const { upload, isUploading } = useImageUpload();
 
   useEffect(() => {
     setPos({ x: node.positionX, y: node.positionY });
@@ -135,22 +142,42 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
     document.addEventListener("mouseup", onUp);
   };
 
-  const handleSend = () => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setPendingImageFile(file);
+    const url = URL.createObjectURL(file);
+    setPendingImagePreview(url);
+  };
+
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if ((!text && !pendingImageFile) || isStreaming || isUploading) return;
     setInput("");
 
-    const userMsg: ChatMessage = { role: "user", text };
+    let uploadedObjectPath: string | null = null;
+    if (pendingImageFile) {
+      uploadedObjectPath = await upload(pendingImageFile);
+      setPendingImageFile(null);
+      if (pendingImagePreview) {
+        URL.revokeObjectURL(pendingImagePreview);
+        setPendingImagePreview(null);
+      }
+    }
+
+    const userMsg: ChatMessage = { role: "user", text: text || " ", ...(uploadedObjectPath ? { imageUrl: uploadedObjectPath } : {}) };
     setMessages((prev) => [...prev, userMsg]);
 
     onChat(
       node.id,
-      text,
+      text || " ",
       (chunk) => setStreamingText((t) => t + chunk),
       (updatedHistory) => {
         setMessages(updatedHistory);
         setStreamingText("");
       },
+      uploadedObjectPath,
     );
   };
 
@@ -205,7 +232,14 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
                   : "bg-muted text-foreground rounded-bl-sm"
               )}
             >
-              {msg.text.split("\n").map((line, j) => (
+              {msg.imageUrl && (
+                <img
+                  src={`/api/storage${msg.imageUrl}`}
+                  alt="Attached"
+                  className="w-full rounded-xl mb-2 max-h-48 object-cover"
+                />
+              )}
+              {msg.text.trim() && msg.text.split("\n").map((line, j) => (
                 <p key={j} className="min-h-[1em]">{line}</p>
               ))}
             </div>
@@ -238,30 +272,67 @@ export function AIChatNode({ node, zoom, otherNodeIds, onChat, isStreaming, exte
 
       {/* Input — hidden in read-only mode */}
       {!readOnly && (
-        <div className="border-t border-border/50 p-2 flex items-end gap-2 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`;
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Continue chatting…"
-            rows={1}
-            className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground font-serif leading-relaxed min-h-[28px] max-h-20"
-          />
-          <Button
-            size="icon"
-            className="h-7 w-7 rounded-full shrink-0"
-            onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
-          >
-            <Send className="w-3 h-3" />
-          </Button>
+        <div className="border-t border-border/50 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+          {/* Pending image preview */}
+          {pendingImagePreview && (
+            <div className="relative px-2 pt-2">
+              <img src={pendingImagePreview} alt="Pending" className="h-16 w-auto rounded-lg object-cover" />
+              <button
+                onClick={() => {
+                  URL.revokeObjectURL(pendingImagePreview);
+                  setPendingImagePreview(null);
+                  setPendingImageFile(null);
+                }}
+                className="absolute top-1 left-1 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <div className="p-2 flex items-end gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-full shrink-0"
+              title="Attach image"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isStreaming}
+            >
+              <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+            </Button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`;
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Continue chatting…"
+              rows={1}
+              className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground font-serif leading-relaxed min-h-[28px] max-h-20"
+            />
+            <Button
+              size="icon"
+              className="h-7 w-7 rounded-full shrink-0"
+              onClick={handleSend}
+              disabled={(!input.trim() && !pendingImageFile) || isStreaming || isUploading}
+            >
+              {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            </Button>
+          </div>
         </div>
       )}
+
+      {/* Hidden file input */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageSelect}
+      />
 
       {/* Resize grip — hidden in read-only mode */}
       {!readOnly && (

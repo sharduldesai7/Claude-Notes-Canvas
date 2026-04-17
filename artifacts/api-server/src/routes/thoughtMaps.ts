@@ -5,6 +5,25 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "../middlewares/auth";
 import { broadcastMapUpdate } from "../ws-rooms";
+import { ObjectStorageService } from "../lib/objectStorage";
+
+const objectStorageService = new ObjectStorageService();
+
+async function fetchImageAsBase64(objectPath: string): Promise<{ data: string; mediaType: string } | null> {
+  try {
+    const file = await objectStorageService.getObjectEntityFile(objectPath);
+    const [[buffer], [metadata]] = await Promise.all([
+      file.download() as Promise<[Buffer, unknown]>,
+      file.getMetadata() as Promise<[Record<string, unknown>, unknown]>,
+    ]);
+    return {
+      data: buffer.toString("base64"),
+      mediaType: (metadata.contentType as string) || "image/jpeg",
+    };
+  } catch {
+    return null;
+  }
+}
 
 const router: IRouter = Router();
 
@@ -346,7 +365,7 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
   try {
     const mapId = parseInt(req.params.mapId);
     const nodeId = parseInt(req.params.nodeId);
-    const { message, contextNodeIds } = req.body;
+    const { message, contextNodeIds, imageObjectPath } = req.body;
 
     if (!message) {
       res.status(400).json({ error: "message is required" });
@@ -368,7 +387,7 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     const customBaseUrl = userSettings?.customBaseUrl;
 
     // Parse existing history
-    let history: { role: "user" | "assistant"; text: string }[] = [];
+    let history: { role: "user" | "assistant"; text: string; imageUrl?: string }[] = [];
     try { if (nodeRow.chatHistory) history = JSON.parse(nodeRow.chatHistory); } catch {}
 
     // Build context from other notes
@@ -388,14 +407,30 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
         : ""
     ].join("");
 
+    // Optionally fetch image for vision
+    let imageData: { data: string; mediaType: string } | null = null;
+    if (imageObjectPath) {
+      imageData = await fetchImageAsBase64(imageObjectPath);
+    }
+
+    // Build user message content (with optional vision block)
+    const userMessageContent: Anthropic.MessageParam["content"] = imageData
+      ? [
+          { type: "image", source: { type: "base64", media_type: imageData.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: imageData.data } },
+          { type: "text", text: message },
+        ]
+      : message;
+
     // Build Anthropic messages array from history + new message
-    const anthropicMessages = [
+    const anthropicMessages: Anthropic.MessageParam[] = [
       ...history.map(m => ({ role: m.role, content: m.text })),
-      { role: "user" as const, content: message },
+      { role: "user" as const, content: userMessageContent },
     ];
 
-    // Append user message to history
-    const updatedHistory = [...history, { role: "user" as const, text: message }];
+    // Append user message to history (store imageUrl for display)
+    const historyEntry: { role: "user"; text: string; imageUrl?: string } = { role: "user" as const, text: message };
+    if (imageObjectPath) historyEntry.imageUrl = imageObjectPath;
+    const updatedHistory = [...history, historyEntry];
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
@@ -488,6 +523,10 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
       }
     }
 
+    // Load node to check for attached image
+    const [askNodeRow] = await db.select().from(nodesTable).where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)));
+    if (!askNodeRow) { res.status(404).json({ error: "Node not found" }); return; }
+
     // Mark node as processing
     await db
       .update(nodesTable)
@@ -503,6 +542,19 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
     const systemPrompt = contextMessages.length > 0
       ? `You are a helpful assistant in a mind-mapping app called Synaptica. Context from related notes:\n\n${contextMessages.join("\n\n---\n\n")}`
       : "You are a helpful assistant in a mind-mapping app called Synaptica. Help the user think through their ideas clearly and concisely.";
+
+    // Optionally attach node image as vision block
+    let askImageData: { data: string; mediaType: string } | null = null;
+    if (askNodeRow.imageUrl) {
+      askImageData = await fetchImageAsBase64(askNodeRow.imageUrl);
+    }
+
+    const askUserContent: Anthropic.MessageParam["content"] = askImageData
+      ? [
+          { type: "image", source: { type: "base64", media_type: askImageData.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: askImageData.data } },
+          { type: "text", text: prompt },
+        ]
+      : prompt;
 
     let fullResponse = "";
 
@@ -521,7 +573,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
       model,
       max_tokens: 8192,
       system: systemPrompt,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: askUserContent as any }],
     });
 
     for await (const event of stream) {

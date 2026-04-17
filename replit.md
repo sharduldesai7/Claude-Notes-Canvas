@@ -57,9 +57,10 @@ artifacts-monorepo/
 ## Database Schema
 
 - **thought_maps** — canvas pages (id, title, userId, createdAt, updatedAt)
-- **nodes** — note/AI chat cards on a canvas (id, mapId, title, nodeType ["note"|"ai_chat"], content, positionX, positionY, width, height, color, claudeResponse, chatHistory, isProcessing, createdAt, updatedAt)
+- **nodes** — note/AI chat cards on a canvas (id, mapId, title, nodeType ["note"|"ai_chat"], content, positionX, positionY, width, height, color, imageUrl, claudeResponse, chatHistory, isProcessing, createdAt, updatedAt)
 - **connections** — arrows linking nodes (id, mapId, fromNodeId, toNodeId, createdAt)
 - **user_settings** — per-user AI preferences (userId, preferredModel, customApiKey, customBaseUrl, updatedAt)
+- **map_shares** — share tokens for maps (id, mapId, token, permission, createdBy, createdAt)
 
 ## API Routes (all require Clerk auth except /health)
 
@@ -72,16 +73,33 @@ artifacts-monorepo/
 - `PATCH/DELETE /api/thought-maps/:mapId/nodes/:nodeId` — update/delete node
 - `GET/POST /api/thought-maps/:mapId/connections` — list/create connections
 - `DELETE /api/thought-maps/:mapId/connections/:connectionId` — delete connection
-- `POST /api/thought-maps/:mapId/nodes/:nodeId/ask-claude` — SSE streaming Claude response
+- `POST /api/thought-maps/:mapId/nodes/:nodeId/ask-claude` — SSE streaming Claude response (vision-aware: uses node.imageUrl if set)
+- `POST /api/thought-maps/:mapId/nodes/:nodeId/chat` — SSE streaming AI chat (accepts optional imageObjectPath for vision)
 - `GET /api/user/settings` — get user AI settings
 - `PUT /api/user/settings` — update user AI settings
+- `POST /api/storage/uploads/request-url` — get GCS presigned PUT URL for image uploads
+- `GET /api/storage/objects/*` — serve uploaded objects from Replit Object Storage
+- `GET /api/storage/public-objects/*` — serve public objects
 
 ## Key Frontend Components
 
 - `Canvas.tsx` — infinite pan/zoom canvas, double-click to create nodes, SVG bezier arrow connections
-- `NodeCard.tsx` — draggable note card with color picker (8 colors), /claude trigger, streaming AI response
+- `NodeCard.tsx` — draggable note card with color picker (8 colors), image attachment, Ask Claude with vision
+- `AIChatNode.tsx` — AI chat card with streaming responses, image attachment per message
 - `MapSidebar.tsx` — left panel with map list, user profile footer, settings/logout buttons
 - `SettingsPage.tsx` — AI model selection (Sonnet/Opus/Haiku/Custom), custom API key support
+
+## Image Feature
+
+- Notes (NodeCard) support a single image attachment stored as `imageUrl` (GCS object path) in the node
+- Image attachment button in the node header; clicking opens a file picker
+- Attached image is displayed in the note card; can be removed with the X button
+- When "Ask Claude" is triggered on a note with an image, the server fetches the image and sends it to Claude as a vision content block
+- AI Chat (AIChatNode) supports per-message image attachments (paperclip button)
+- Images are uploaded to Replit Object Storage (GCS) via presigned PUT URLs
+- Frontend uses `use-image-upload.ts` hook: gets presigned URL from `/api/storage/uploads/request-url`, PUTs file directly to GCS
+- Images are served via `/api/storage/objects/*` — no auth required (UUID paths)
+- Image history is stored in `chatHistory` JSON with `imageUrl` field per message entry
 
 ## Development
 
