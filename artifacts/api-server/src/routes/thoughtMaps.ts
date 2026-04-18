@@ -738,28 +738,74 @@ ${noteSummaries}`,
     const jsonMatch = rawText.match(/\[[\d,\s]+\]/);
     let orderedIds: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
-    // Validate + append any notes Claude missed
+    // Validate + append any notes Claude missed; deduplicate to avoid double-placement
     const validIds = new Set(notes.map(n => n.id));
-    orderedIds = orderedIds.filter(id => validIds.has(id));
-    const missed = notes.filter(n => !orderedIds.includes(n.id)).map(n => n.id);
+    const seen = new Set<number>();
+    orderedIds = orderedIds.filter(id => {
+      if (!validIds.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    const missed = notes.filter(n => !seen.has(n.id)).map(n => n.id);
     const finalOrder = [...orderedIds, ...missed];
 
-    // Layout: single horizontal row with per-note widths + fixed gap
-    const GAP = 60;
+    // Grid layout — up to 5 columns, wraps into rows when there are many nodes.
+    // Uses per-node stored sizes so no two cells ever overlap.
+    const DEFAULT_NOTE_W = 280;
+    const DEFAULT_NOTE_H = 220;  // conservative height for auto-sized notes
+    const DEFAULT_CHAT_W = 320;
+    const DEFAULT_CHAT_H = 400;
+    const COL_GAP = 80;
+    const ROW_GAP = 80;
     const START_X = 80;
-    const ROW_Y = 200;
+    const START_Y = 80;
 
-    let cursor = START_X;
-    await Promise.all(
-      finalOrder.map(id => {
-        const note = notes.find(n => n.id === id)!;
-        const x = cursor;
-        cursor += (note.width || 280) + GAP;
-        return db.update(nodesTable)
-          .set({ positionX: Math.round(x), positionY: ROW_Y, updatedAt: new Date() })
-          .where(eq(nodesTable.id, id));
-      })
-    );
+    const COL_COUNT = Math.min(finalOrder.length, 5);
+    const ROW_COUNT = Math.ceil(finalOrder.length / COL_COUNT);
+
+    // Measure each node
+    const nodeSize = (id: number) => {
+      const n = notes.find(n => n.id === id)!;
+      return {
+        w: n.width  || (n.nodeType === "ai_chat" ? DEFAULT_CHAT_W : DEFAULT_NOTE_W),
+        h: n.height || (n.nodeType === "ai_chat" ? DEFAULT_CHAT_H : DEFAULT_NOTE_H),
+      };
+    };
+
+    // Pass 1 — find the max width per column and max height per row
+    const colMaxW = Array<number>(COL_COUNT).fill(0);
+    const rowMaxH = Array<number>(ROW_COUNT).fill(0);
+    finalOrder.forEach((id, idx) => {
+      const col = idx % COL_COUNT;
+      const row = Math.floor(idx / COL_COUNT);
+      const { w, h } = nodeSize(id);
+      if (w > colMaxW[col]) colMaxW[col] = w;
+      if (h > rowMaxH[row]) rowMaxH[row] = h;
+    });
+
+    // Pass 2 — compute cumulative X / Y offsets
+    const colX: number[] = [START_X];
+    for (let c = 1; c < COL_COUNT; c++) {
+      colX[c] = colX[c - 1] + colMaxW[c - 1] + COL_GAP;
+    }
+    const rowY: number[] = [START_Y];
+    for (let r = 1; r < ROW_COUNT; r++) {
+      rowY[r] = rowY[r - 1] + rowMaxH[r - 1] + ROW_GAP;
+    }
+
+    // Apply positions sequentially (for loop guarantees no shared state issues)
+    const updates: Promise<unknown>[] = [];
+    for (let idx = 0; idx < finalOrder.length; idx++) {
+      const id = finalOrder[idx];
+      const col = idx % COL_COUNT;
+      const row = Math.floor(idx / COL_COUNT);
+      updates.push(
+        db.update(nodesTable)
+          .set({ positionX: colX[col], positionY: rowY[row], updatedAt: new Date() })
+          .where(eq(nodesTable.id, id))
+      );
+    }
+    await Promise.all(updates);
 
     broadcastMapUpdate(mapId);
     res.json({ success: true, order: finalOrder });
