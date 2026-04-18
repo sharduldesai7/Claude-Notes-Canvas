@@ -1,10 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useGesture } from "@use-gesture/react";
 import { ThoughtMapFull, Node } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getGetThoughtMapQueryKey } from "@workspace/api-client-react";
 import { useCreateNode } from "@/hooks/use-nodes";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { ChatMessage } from "./AIChatNode";
 import { RemoteCursor } from "@/hooks/use-realtime-sync";
+import { LayoutTemplate, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 import { NodeCard } from "./NodeCard";
 import { AIChatNode } from "./AIChatNode";
@@ -39,6 +43,24 @@ export function Canvas({
 
   const { mutateAsync: createNodeAsync } = useCreateNode();
   const { sendMessage, streamingNodeId } = useChatStream();
+  const queryClient = useQueryClient();
+  const [isOrganizing, setIsOrganizing] = useState(false);
+
+  const handleOrganize = useCallback(async () => {
+    if (isOrganizing) return;
+    setIsOrganizing(true);
+    try {
+      const res = await fetch(`/api/thought-maps/${map.id}/organize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        await queryClient.refetchQueries({ queryKey: getGetThoughtMapQueryKey(map.id) });
+      }
+    } finally {
+      setIsOrganizing(false);
+    }
+  }, [isOrganizing, map.id, queryClient]);
 
   // When server data lands (map.nodes updates), clear pendingHistory for nodes that now have chatHistory
   useEffect(() => {
@@ -240,6 +262,25 @@ export function Canvas({
 
       {/* AI Chat Bar — fixed at bottom, hidden in read-only mode */}
       {!readOnly && <AIChatBar onSend={handleBarSend} isStreaming={isBarStreaming} />}
+
+      {/* Auto-arrange button */}
+      {!readOnly && map.nodes.some(n => n.nodeType === "note") && (
+        <div className="absolute top-4 right-4 z-10">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="flex items-center gap-1.5 shadow-md border border-border/60 bg-card/90 backdrop-blur-sm hover:bg-accent"
+            onClick={handleOrganize}
+            disabled={isOrganizing}
+            title="Arrange notes in logical left-to-right order using AI"
+          >
+            {isOrganizing
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <LayoutTemplate className="w-3.5 h-3.5" />}
+            <span>{isOrganizing ? "Arranging…" : "Auto-arrange"}</span>
+          </Button>
+        </div>
+      )}
 
       {/* HUD */}
       <div className="absolute bottom-20 right-6 flex items-center gap-2 bg-card/80 backdrop-blur-md p-2 rounded-xl shadow-lg border border-border/50 pointer-events-none">

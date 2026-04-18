@@ -692,6 +692,79 @@ router.delete("/:mapId/shares/:shareId", async (req: any, res) => {
   }
 });
 
+// Auto-arrange notes logically left-to-right using Claude
+router.post("/:mapId/organize", async (req: any, res) => {
+  try {
+    const mapId = parseInt(req.params.mapId);
+
+    if (!await verifyMapOwnership(mapId, req.userId, undefined, "edit")) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const notes = await db.select().from(nodesTable).where(
+      and(eq(nodesTable.mapId, mapId), eq(nodesTable.nodeType, "note"))
+    );
+
+    if (notes.length < 2) {
+      res.json({ success: true, order: notes.map(n => n.id) });
+      return;
+    }
+
+    // Ask Claude to determine the logical reading order
+    const noteSummaries = notes.map(n =>
+      `ID ${n.id} | Title: "${n.title || "Untitled"}" | Content: "${(n.content || "").slice(0, 300)}"`
+    ).join("\n");
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 256,
+      messages: [{
+        role: "user",
+        content: `You are organizing notes on a visual thinking canvas. Arrange these notes in the most logical left-to-right reading order — consider narrative flow, cause-and-effect, chronology, or general-to-specific, whichever best fits the content.
+
+Return ONLY a JSON array of note IDs in the order they should appear left-to-right. Nothing else. Example: [12, 7, 3, 15]
+
+Notes:
+${noteSummaries}`,
+      }],
+    });
+
+    const rawText = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+    const jsonMatch = rawText.match(/\[[\d,\s]+\]/);
+    let orderedIds: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+    // Validate + append any notes Claude missed
+    const validIds = new Set(notes.map(n => n.id));
+    orderedIds = orderedIds.filter(id => validIds.has(id));
+    const missed = notes.filter(n => !orderedIds.includes(n.id)).map(n => n.id);
+    const finalOrder = [...orderedIds, ...missed];
+
+    // Layout: single horizontal row with per-note widths + fixed gap
+    const GAP = 60;
+    const START_X = 80;
+    const ROW_Y = 200;
+
+    let cursor = START_X;
+    await Promise.all(
+      finalOrder.map(id => {
+        const note = notes.find(n => n.id === id)!;
+        const x = cursor;
+        cursor += (note.width || 280) + GAP;
+        return db.update(nodesTable)
+          .set({ positionX: Math.round(x), positionY: ROW_Y, updatedAt: new Date() })
+          .where(eq(nodesTable.id, id));
+      })
+    );
+
+    broadcastMapUpdate(mapId);
+    res.json({ success: true, order: finalOrder });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to organize notes" });
+  }
+});
+
 function generateShareToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let token = "";
