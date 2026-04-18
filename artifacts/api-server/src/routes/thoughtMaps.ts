@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -703,7 +703,10 @@ router.post("/:mapId/organize", async (req: any, res) => {
     }
 
     const notes = await db.select().from(nodesTable).where(
-      and(eq(nodesTable.mapId, mapId), eq(nodesTable.nodeType, "note"))
+      and(
+        eq(nodesTable.mapId, mapId),
+        or(eq(nodesTable.nodeType, "note"), eq(nodesTable.nodeType, "ai_chat"))
+      )
     );
 
     if (notes.length < 2) {
@@ -712,9 +715,10 @@ router.post("/:mapId/organize", async (req: any, res) => {
     }
 
     // Ask Claude to determine the logical reading order
-    const noteSummaries = notes.map(n =>
-      `ID ${n.id} | Title: "${n.title || "Untitled"}" | Content: "${(n.content || "").slice(0, 300)}"`
-    ).join("\n");
+    const noteSummaries = notes.map(n => {
+      const type = n.nodeType === "ai_chat" ? "AI Chat" : "Note";
+      return `ID ${n.id} | Type: ${type} | Title: "${n.title || "Untitled"}" | Content: "${(n.content || "").slice(0, 300)}"`;
+    }).join("\n");
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",

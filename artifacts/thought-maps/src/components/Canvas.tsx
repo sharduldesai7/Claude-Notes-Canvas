@@ -264,7 +264,7 @@ export function Canvas({
       {!readOnly && <AIChatBar onSend={handleBarSend} isStreaming={isBarStreaming} />}
 
       {/* Auto-arrange button */}
-      {!readOnly && map.nodes.some(n => n.nodeType === "note") && (
+      {!readOnly && map.nodes.some(n => n.nodeType === "note" || n.nodeType === "ai_chat") && (
         <div className="absolute top-4 right-4 z-10">
           <Button
             size="sm"
@@ -272,12 +272,12 @@ export function Canvas({
             className="flex items-center gap-1.5 shadow-md border border-border/60 bg-card/90 backdrop-blur-sm hover:bg-accent"
             onClick={handleOrganize}
             disabled={isOrganizing}
-            title="Arrange notes in logical left-to-right order using AI"
+            title="Arrange notes and AI chats in logical left-to-right order using AI"
           >
             {isOrganizing
               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
               : <LayoutTemplate className="w-3.5 h-3.5" />}
-            <span>{isOrganizing ? "Arranging…" : "Auto-arrange"}</span>
+            <span>{isOrganizing ? "Arranging…" : "Organisze"}</span>
           </Button>
         </div>
       )}
