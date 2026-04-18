@@ -105,6 +105,15 @@ export function NodeCard({ node, zoom, otherNodeIds, readOnly = false }: NodeCar
   };
   useEffect(() => { autoResize(); }, [content]);
 
+  // Auto-save content to DB 600ms after typing stops (so AI chat context is always current)
+  useEffect(() => {
+    if (readOnly || content === node.content) return;
+    const timer = setTimeout(() => {
+      updateNode({ mapId: node.mapId, nodeId: node.id, data: { content } });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const bindDrag = useDrag(({ offset: [ox, oy], last, event }) => {
     event.stopPropagation();
     setPos({ x: ox, y: oy });

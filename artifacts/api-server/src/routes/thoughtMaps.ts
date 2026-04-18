@@ -394,9 +394,12 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     const allNotes = await db.select().from(nodesTable).where(
       and(eq(nodesTable.mapId, mapId), eq(nodesTable.nodeType, "note"))
     );
-    const contextSections = allNotes
-      .filter(n => n.content && n.id !== nodeId)
-      .map(n => `Note "${n.title || "Untitled"}": ${n.content}`);
+    const contextNotes = allNotes.filter(n => n.id !== nodeId && (n.content || n.imageUrl));
+    const contextSections = contextNotes.map(n => {
+      let section = `Note "${n.title || "Untitled"}": ${n.content || "(no text)"}`;
+      if (n.imageUrl) section += " [has attached image]";
+      return section;
+    });
 
     const systemPrompt = [
       "You are a helpful AI assistant inside a mind-mapping app called Synaptica. Respond conversationally and concisely.",
@@ -405,13 +408,24 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
         : ""
     ].join("");
 
-    // Optionally fetch image for vision
+    // Fetch images from notes that have them (for vision context)
+    const noteImageResults = await Promise.all(
+      contextNotes
+        .filter(n => n.imageUrl)
+        .map(async n => {
+          const imgData = await fetchImageAsBase64(n.imageUrl!);
+          return imgData ? { note: n, imgData } : null;
+        })
+    );
+    const noteImages = noteImageResults.filter((x): x is { note: typeof contextNotes[0]; imgData: { data: string; mediaType: string } } => x !== null);
+
+    // Optionally fetch image for the user's current message
     let imageData: { data: string; mediaType: string } | null = null;
     if (imageObjectPath) {
       imageData = await fetchImageAsBase64(imageObjectPath);
     }
 
-    // Build user message content (with optional vision block)
+    // Build user message content (with optional vision block for user-attached image)
     const userMessageContent: Anthropic.MessageParam["content"] = imageData
       ? [
           { type: "image", source: { type: "base64", media_type: imageData.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: imageData.data } },
@@ -419,11 +433,30 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
         ]
       : message;
 
-    // Build Anthropic messages array from history + new message
-    const anthropicMessages: Anthropic.MessageParam[] = [
-      ...history.map(m => ({ role: m.role, content: m.text })),
-      { role: "user" as const, content: userMessageContent },
-    ];
+    // Build Anthropic messages array:
+    // 1. If there are note images, prepend a context exchange so Claude can see them
+    // 2. Then the real conversation history
+    // 3. Then the current user message
+    const anthropicMessages: Anthropic.MessageParam[] = [];
+
+    if (noteImages.length > 0) {
+      const noteImageContent: Anthropic.MessageParam["content"] = noteImages.flatMap(ni => [
+        {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: ni.imgData.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: ni.imgData.data,
+          },
+        },
+        { type: "text" as const, text: `[Image attached to note "${ni.note.title || "Untitled"}"]` },
+      ]);
+      anthropicMessages.push({ role: "user" as const, content: noteImageContent });
+      anthropicMessages.push({ role: "assistant" as const, content: "I can see the images attached to the notes on your canvas and will reference them as needed." });
+    }
+
+    anthropicMessages.push(...history.map(m => ({ role: m.role, content: m.text } as Anthropic.MessageParam)));
+    anthropicMessages.push({ role: "user" as const, content: userMessageContent });
 
     // Append user message to history (store imageUrl for display)
     const historyEntry: { role: "user"; text: string; imageUrl?: string } = { role: "user" as const, text: message };
