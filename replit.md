@@ -6,6 +6,8 @@ Synaptica is a mind-map style note-taking web app with an infinite canvas, AI in
 
 Maps can be shared via links with view-only or edit permission. Real-time collaboration is supported — multiple users on the same map see each other's changes instantly via WebSocket push (the server broadcasts the full updated map after every mutation).
 
+**Guest sessions**: Visitors can try the app without signing in. A 30-minute guest session is created, stored in `sessionStorage`, and attached to every API request via the `X-Guest-Token` header. Guests get a full infinite canvas with a non-threatening countdown banner (neutral → amber at 5 min → red at 1 min). Data is cleaned up on tab close (via `sendBeacon`) or by a server-side cleanup job that runs every 2 minutes.
+
 pnpm workspace monorepo using TypeScript.
 
 ## Stack
@@ -27,7 +29,7 @@ pnpm workspace monorepo using TypeScript.
 ### Thought Maps (artifacts/thought-maps)
 The primary React + Vite web application.
 
-- **Landing page**: `/` — "Think Freely" landing with Get Started / Sign In
+- **Landing page**: `/` — "Think Freely" landing with Get Started / Sign In / "Try without signing in"
 - **App**: `/m` and `/m/:mapId` — sidebar + infinite canvas
 - **Settings**: `/settings` — AI model preferences, profile
 

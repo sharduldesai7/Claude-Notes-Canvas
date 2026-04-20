@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { setupWebSocket } from "./ws-rooms";
+import { cleanupExpiredGuestSessions } from "./routes/guestSessions";
 import http from "http";
 
 const rawPort = process.env["PORT"];
@@ -27,3 +28,6 @@ server.listen(port, (err?: Error) => {
   }
   logger.info({ port }, "Server listening");
 });
+
+// Clean up expired guest sessions every 2 minutes
+setInterval(cleanupExpiredGuestSessions, 2 * 60 * 1000);

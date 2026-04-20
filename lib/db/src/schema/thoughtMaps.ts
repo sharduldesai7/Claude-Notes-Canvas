@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -60,6 +60,17 @@ export const userSettingsTable = pgTable("user_settings", {
 export const insertUserSettingsSchema = createInsertSchema(userSettingsTable).omit({ updatedAt: true });
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type UserSettings = typeof userSettingsTable.$inferSelect;
+
+export const guestSessionsTable = pgTable("guest_sessions", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [index("guest_sessions_token_idx").on(t.token)]);
+
+export const insertGuestSessionSchema = createInsertSchema(guestSessionsTable).omit({ id: true, createdAt: true });
+export type InsertGuestSession = z.infer<typeof insertGuestSessionSchema>;
+export type GuestSession = typeof guestSessionsTable.$inferSelect;
 
 export const mapSharesTable = pgTable("map_shares", {
   id: serial("id").primaryKey(),

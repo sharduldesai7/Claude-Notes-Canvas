@@ -3,7 +3,7 @@ import { eq, and, or } from "drizzle-orm";
 import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuthOrGuest } from "../middlewares/auth";
 import { broadcastMapUpdate } from "../ws-rooms";
 import { ObjectStorageService } from "../lib/objectStorage";
 
@@ -27,8 +27,8 @@ async function fetchImageAsBase64(objectPath: string): Promise<{ data: string; m
 
 const router: IRouter = Router();
 
-// All routes require authentication
-router.use(requireAuth);
+// All routes require authentication (Clerk) or a valid guest session token
+router.use(requireAuthOrGuest);
 
 // List all thought maps for current user
 router.get("/", async (req: any, res) => {
