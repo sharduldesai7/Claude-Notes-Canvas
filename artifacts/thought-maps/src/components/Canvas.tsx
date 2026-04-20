@@ -320,7 +320,7 @@ export function Canvas({
             {isOrganizing
               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
               : <LayoutTemplate className="w-3.5 h-3.5" />}
-            <span>{isOrganizing ? "Arranging…" : "Organisze"}</span>
+            <span>{isOrganizing ? "Arranging…" : "Organize"}</span>
           </Button>
         </div>
       )}
