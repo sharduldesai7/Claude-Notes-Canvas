@@ -755,10 +755,10 @@ ${noteSummaries}`,
     const DEFAULT_NOTE_H = 220;  // conservative height for auto-sized notes
     const DEFAULT_CHAT_W = 320;
     const DEFAULT_CHAT_H = 400;
-    const COL_GAP = 80;
-    const ROW_GAP = 80;
-    const START_X = 80;
-    const START_Y = 80;
+    const COL_GAP = 40;
+    const ROW_GAP = 40;
+    const START_X = 40;
+    const START_Y = 40;
 
     const COL_COUNT = Math.min(finalOrder.length, 5);
     const ROW_COUNT = Math.ceil(finalOrder.length / COL_COUNT);

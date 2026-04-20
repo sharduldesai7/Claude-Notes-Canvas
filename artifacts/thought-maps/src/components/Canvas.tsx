@@ -45,6 +45,48 @@ export function Canvas({
   const { sendMessage, streamingNodeId } = useChatStream();
   const queryClient = useQueryClient();
   const [isOrganizing, setIsOrganizing] = useState(false);
+  const fitAfterOrganizeRef = useRef(false);
+
+  const fitToNodes = useCallback(() => {
+    if (!containerRef.current) return;
+    const nodes = map.nodes.filter(n => n.nodeType === "note" || n.nodeType === "ai_chat");
+    if (nodes.length === 0) return;
+
+    const PADDING = 60;
+    const rect = containerRef.current.getBoundingClientRect();
+
+    const minX = Math.min(...nodes.map(n => n.positionX));
+    const minY = Math.min(...nodes.map(n => n.positionY));
+    const maxX = Math.max(...nodes.map(n => n.positionX + (n.width  || (n.nodeType === "ai_chat" ? 320 : 280))));
+    const maxY = Math.max(...nodes.map(n => n.positionY + (n.height || (n.nodeType === "ai_chat" ? 400 : 220))));
+
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    if (contentW <= 0 || contentH <= 0) return;
+
+    const newZoom = Math.min(
+      (rect.width  - 2 * PADDING) / contentW,
+      (rect.height - 2 * PADDING) / contentH,
+      1,   // never zoom in past 100%
+    );
+    const clampedZoom = Math.max(0.15, newZoom);
+
+    // Centre the content inside the viewport
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    setPan({
+      x: rect.width  / 2 - centerX * clampedZoom,
+      y: rect.height / 2 - centerY * clampedZoom,
+    });
+    setZoom(clampedZoom);
+  }, [map.nodes]);
+
+  // Fire fit-to-nodes once whenever an organize completes and map data refreshes
+  useEffect(() => {
+    if (!fitAfterOrganizeRef.current) return;
+    fitAfterOrganizeRef.current = false;
+    fitToNodes();
+  }, [map.nodes, fitToNodes]);
 
   const handleOrganize = useCallback(async () => {
     if (isOrganizing) return;
@@ -55,6 +97,7 @@ export function Canvas({
         headers: { "Content-Type": "application/json" },
       });
       if (res.ok) {
+        fitAfterOrganizeRef.current = true;
         await queryClient.refetchQueries({ queryKey: getGetThoughtMapQueryKey(map.id) });
       }
     } finally {
