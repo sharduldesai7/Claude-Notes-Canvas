@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "synaptica_onboarded_v4";
+const GUEST_STORAGE_KEY = "synaptica_guest_onboarded";
 
 export function useOnboarding() {
   const [open, setOpen] = useState(() => {
@@ -13,6 +14,20 @@ export function useOnboarding() {
 
   const dismiss = () => {
     localStorage.setItem(STORAGE_KEY, "1");
+    setOpen(false);
+  };
+
+  return { open, dismiss };
+}
+
+/** Guest variant — uses sessionStorage so each new guest session sees onboarding. */
+export function useGuestOnboarding() {
+  const [open, setOpen] = useState(() => {
+    return !sessionStorage.getItem(GUEST_STORAGE_KEY);
+  });
+
+  const dismiss = () => {
+    sessionStorage.setItem(GUEST_STORAGE_KEY, "1");
     setOpen(false);
   };
 

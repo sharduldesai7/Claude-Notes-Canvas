@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Plus, Trash2, Edit2, Check, X, Settings, LogOut, ChevronLeft, ChevronRight, Map, Link2 } from "lucide-react";
+import { Plus, Trash2, Edit2, Check, X, Settings, LogOut, ChevronLeft, ChevronRight, Map, Link2, UserPlus, LogIn } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,15 +13,23 @@ import { SynapticaLogo } from "@/components/SynapticaLogo";
 import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShareModal } from "@/components/ShareModal";
+import { useToast } from "@/hooks/use-toast";
 
 const COLLAPSED_KEY = "synaptica_sidebar_collapsed";
 
-export function MapSidebar() {
+interface MapSidebarProps {
+  isGuest?: boolean;
+  onSignUp?: () => void;
+  onSignIn?: () => void;
+}
+
+export function MapSidebar({ isGuest = false, onSignUp, onSignIn }: MapSidebarProps) {
   const [location, setLocation] = useLocation();
   const { data: maps, isLoading } = useThoughtMaps();
   const { mutate: createMap, isPending: isCreating } = useCreateThoughtMap();
   const { mutate: updateMap } = useUpdateThoughtMap();
   const { mutate: deleteMap } = useDeleteThoughtMap();
+  const { toast } = useToast();
 
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -30,6 +38,10 @@ export function MapSidebar() {
   const [editTitle, setEditTitle] = useState("");
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "1");
   const [sharingMap, setSharingMap] = useState<{ id: number; title: string } | null>(null);
+
+  // Route prefix differs for guests vs authenticated users
+  const mapPath = (id: number) => (isGuest ? `/guest-map/${id}` : `/m/${id}`);
+  const isActive = (id: number) => location === mapPath(id);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -40,7 +52,19 @@ export function MapSidebar() {
   const handleCreate = () => {
     createMap(
       { data: { title: "Untitled Synaptica Map" } },
-      { onSuccess: (data) => setLocation(`/m/${data.id}`) }
+      {
+        onSuccess: (data) => setLocation(mapPath(data.id)),
+        onError: (err: any) => {
+          const msg = err?.message ?? "";
+          if (msg.includes("limited to")) {
+            toast({
+              title: "Map limit reached",
+              description: "Guest sessions can have at most 2 maps. Sign up free to create unlimited maps.",
+              variant: "destructive",
+            });
+          }
+        },
+      }
     );
   };
 
@@ -56,7 +80,8 @@ export function MapSidebar() {
     if (confirm("Are you sure you want to delete this map?")) {
       deleteMap({ id }, {
         onSuccess: () => {
-          if (location === `/m/${id}`) setLocation("/m");
+          const active = location === mapPath(id);
+          if (active) setLocation(isGuest ? "/guest-map" : "/m");
         }
       });
     }
@@ -67,7 +92,7 @@ export function MapSidebar() {
     <motion.div
       animate={{ width: collapsed ? 56 : 288 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="border-r border-border bg-sidebar h-screen flex flex-col shadow-sm z-10 relative shrink-0 overflow-hidden"
+      className="border-r border-border bg-sidebar h-full flex flex-col shadow-sm z-10 relative shrink-0 overflow-hidden"
     >
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="h-14 border-b border-border/50 bg-sidebar/80 backdrop-blur flex items-center justify-between px-3 shrink-0">
@@ -109,7 +134,7 @@ export function MapSidebar() {
                       <Plus className="w-4 h-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Create new map</TooltipContent>
+                  <TooltipContent>{isGuest ? "Create new map (max 2)" : "Create new map"}</TooltipContent>
                 </Tooltip>
               </motion.div>
             )}
@@ -134,28 +159,25 @@ export function MapSidebar() {
                   <Plus className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">Create new map</TooltipContent>
+              <TooltipContent side="right">{isGuest ? "Create new map (max 2)" : "Create new map"}</TooltipContent>
             </Tooltip>
 
-            {maps?.map((map) => {
-              const isActive = location === `/m/${map.id}`;
-              return (
-                <Tooltip key={map.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setLocation(`/m/${map.id}`)}
-                      className={cn(
-                        "h-9 w-9 rounded-lg flex items-center justify-center transition-colors",
-                        isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                    >
-                      <Map className="w-4 h-4" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-[200px] truncate">{map.title}</TooltipContent>
-                </Tooltip>
-              );
-            })}
+            {maps?.map((map) => (
+              <Tooltip key={map.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setLocation(mapPath(map.id))}
+                    className={cn(
+                      "h-9 w-9 rounded-lg flex items-center justify-center transition-colors",
+                      isActive(map.id) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Map className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-[200px] truncate">{map.title}</TooltipContent>
+              </Tooltip>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -183,7 +205,7 @@ export function MapSidebar() {
               </div>
             ) : (
               maps?.map((map) => {
-                const isActive = location === `/m/${map.id}`;
+                const active = isActive(map.id);
                 const isEditing = editingId === map.id;
 
                 return (
@@ -191,11 +213,11 @@ export function MapSidebar() {
                     key={map.id}
                     className={cn(
                       "group relative rounded-xl transition-all duration-200 cursor-pointer overflow-hidden",
-                      isActive
+                      active
                         ? "bg-white shadow-sm border border-border/50"
                         : "hover:bg-black/5 border border-transparent"
                     )}
-                    onClick={() => !isEditing && setLocation(`/m/${map.id}`)}
+                    onClick={() => !isEditing && setLocation(mapPath(map.id))}
                   >
                     <div className="p-3">
                       {isEditing ? (
@@ -220,7 +242,7 @@ export function MapSidebar() {
                       ) : (
                         <div className="flex justify-between items-start">
                           <div className="flex-1 pr-6">
-                            <h3 className={cn("font-medium text-sm truncate", isActive ? "text-primary" : "text-foreground")}>
+                            <h3 className={cn("font-medium text-sm truncate", active ? "text-primary" : "text-foreground")}>
                               {map.title}
                             </h3>
                             <p className="text-xs text-muted-foreground mt-1 font-medium">
@@ -229,18 +251,21 @@ export function MapSidebar() {
                           </div>
 
                           <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-1 bg-gradient-to-l from-white via-white to-transparent pl-4 py-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSharingMap({ id: map.id, title: map.title });
-                              }}
-                              title="Share map"
-                            >
-                              <Link2 className="w-3.5 h-3.5" />
-                            </Button>
+                            {/* Share is only available to authenticated users */}
+                            {!isGuest && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSharingMap({ id: map.id, title: map.title });
+                                }}
+                                title="Share map"
+                              >
+                                <Link2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
@@ -265,7 +290,7 @@ export function MapSidebar() {
                         </div>
                       )}
                     </div>
-                    {isActive && (
+                    {active && (
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full" />
                     )}
                   </div>
@@ -279,57 +304,92 @@ export function MapSidebar() {
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className={cn(
         "border-t border-border/50 bg-sidebar/80 backdrop-blur shrink-0",
-        collapsed ? "p-2 flex flex-col items-center gap-1" : "p-3 flex items-center justify-between"
+        collapsed ? "p-2 flex flex-col items-center gap-1" : "p-3"
       )}>
-        {collapsed ? (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setLocation("/settings")}>
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Settings</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => signOut()}>
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Sign Out</TooltipContent>
-            </Tooltip>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 overflow-hidden">
-              <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={user?.imageUrl} />
-                <AvatarFallback>{user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress?.[0]}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-medium truncate">{user?.fullName || user?.emailAddresses[0]?.emailAddress}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
+        {isGuest ? (
+          /* Guest footer — sign-up / sign-in CTAs */
+          collapsed ? (
+            <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLocation("/settings")}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-primary hover:bg-primary/10" onClick={onSignUp}>
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Sign up free</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" onClick={onSignIn}>
+                    <LogIn className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Sign in</TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Button size="sm" className="w-full gap-2 h-8" onClick={onSignUp}>
+                <UserPlus className="w-3.5 h-3.5" />
+                Sign up free — save your maps
+              </Button>
+              <Button size="sm" variant="ghost" className="w-full h-7 text-xs text-muted-foreground" onClick={onSignIn}>
+                Already have an account? Sign in
+              </Button>
+            </div>
+          )
+        ) : (
+          /* Authenticated footer */
+          collapsed ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setLocation("/settings")}>
                     <Settings className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Settings</TooltipContent>
+                <TooltipContent side="right">Settings</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => signOut()}>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => signOut()}>
                     <LogOut className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Sign Out</TooltipContent>
+                <TooltipContent side="right">Sign Out</TooltipContent>
               </Tooltip>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarImage src={user?.imageUrl} />
+                  <AvatarFallback>{user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress?.[0]}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium truncate">{user?.fullName || user?.emailAddresses[0]?.emailAddress}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLocation("/settings")}>
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Settings</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => signOut()}>
+                      <LogOut className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Sign Out</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
-          </>
+          )
         )}
       </div>
     </motion.div>
