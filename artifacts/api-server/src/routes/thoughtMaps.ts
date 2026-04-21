@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, count } from "drizzle-orm";
 import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -46,6 +46,8 @@ router.get("/", async (req: any, res) => {
 });
 
 // Create a thought map
+const GUEST_MAP_LIMIT = 2;
+
 router.post("/", async (req: any, res) => {
   try {
     const { title } = req.body;
@@ -53,6 +55,19 @@ router.post("/", async (req: any, res) => {
       res.status(400).json({ error: "title is required" });
       return;
     }
+
+    // Guest users may only create up to GUEST_MAP_LIMIT maps
+    if (req.isGuest) {
+      const [{ value }] = await db
+        .select({ value: count() })
+        .from(thoughtMapsTable)
+        .where(eq(thoughtMapsTable.userId, req.userId));
+      if (value >= GUEST_MAP_LIMIT) {
+        res.status(403).json({ error: `Guest sessions are limited to ${GUEST_MAP_LIMIT} maps.` });
+        return;
+      }
+    }
+
     const [map] = await db
       .insert(thoughtMapsTable)
       .values({ title, userId: req.userId })

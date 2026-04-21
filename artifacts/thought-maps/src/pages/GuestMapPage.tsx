@@ -7,6 +7,7 @@ import { Canvas } from "@/components/Canvas";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { Loader2 } from "lucide-react";
 import { useParams } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export function GuestMapPage() {
   const { mapId } = useParams<{ mapId?: string }>();
@@ -15,6 +16,7 @@ export function GuestMapPage() {
   const { data: maps, isLoading: isMapsLoading } = useThoughtMaps();
   const { mutate: createMap, isPending: isCreating } = useCreateThoughtMap();
   const hasCreatedMap = useRef(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isGuest && !isExpired) {
@@ -43,7 +45,15 @@ export function GuestMapPage() {
         hasCreatedMap.current = true;
         createMap(
           { data: { title: "My First Synaptica Map" } },
-          { onSuccess: (data) => setLocation(`/guest-map/${data.id}`, { replace: true }) }
+          {
+            onSuccess: (data) => setLocation(`/guest-map/${data.id}`, { replace: true }),
+            onError: (err: any) => {
+              const msg = err?.message ?? "";
+              if (msg.includes("limited to")) {
+                toast({ title: "Map limit reached", description: "Guest sessions can have at most 2 maps. Sign up to create unlimited maps.", variant: "destructive" });
+              }
+            },
+          }
         );
       }
     }
