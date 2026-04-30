@@ -17,10 +17,12 @@ Synaptica is a mind-mapping web app built around an infinite canvas. Each "Thoug
 - **Image attachments** — attach an image to any note; Claude can see and reason about it when you ask
 - **AI Chat nodes** — a bottom chat bar spawns a dedicated Claude conversation node wired into your canvas context; attach images to individual messages for vision-aware replies
 - **Ask Claude** — one-click AI analysis of any note, with streaming response shown inline
+- **AI Auto-organize** — one click repositions all nodes into a clean, readable grid layout ordered by Claude
 - **Configurable model** — choose Claude Sonnet, Opus, or Haiku; bring your own API key + base URL if needed
 - **Shareable maps** — generate view-only or edit-access links; share with anyone, no account required
 - **Real-time collaboration** — live cursors and instant data sync via WebSocket; changes appear for all editors immediately
-- **Onboarding** — five-step guided tour on first sign-in
+- **Guest sessions** — try the full app without signing in; 30-minute sessions with up to 2 maps, full sidebar, and a non-threatening countdown timer
+- **Onboarding** — five-step guided tour on first sign-in (also shown fresh for each new guest session)
 - **Google sign-in** via Clerk auth
 
 ---
@@ -52,16 +54,18 @@ synaptica/
 ├── artifacts/
 │   ├── api-server/          # Express REST + SSE + WebSocket API
 │   │   └── src/
-│   │       ├── routes/      # thoughtMaps, storage, userSettings, shared
+│   │       ├── routes/      # thoughtMaps, guestSessions, storage,
+│   │       │                #   userSettings, shared
 │   │       ├── lib/         # objectStorage, objectAcl
-│   │       ├── middlewares/ # Clerk auth, clerkProxy
+│   │       ├── middlewares/ # auth (Clerk + guest), clerkProxy
 │   │       └── ws-rooms.ts  # WebSocket room management
 │   └── thought-maps/        # React + Vite frontend
 │       └── src/
-│           ├── components/  # Canvas, NodeCard, AIChatNode, MapSidebar, …
+│           ├── components/  # Canvas, NodeCard, AIChatNode, MapSidebar,
+│           │                #   GuestSessionBanner, OnboardingModal, …
 │           ├── hooks/       # use-nodes, use-chat-stream, use-ask-claude,
-│           │                #   use-image-upload, use-realtime-sync, …
-│           └── pages/       # LandingPage, ThoughtMapPage, SettingsPage
+│           │                #   use-guest-session, use-realtime-sync, …
+│           └── pages/       # ThoughtMapPage, GuestMapPage, SettingsPage
 ├── lib/
 │   ├── api-spec/            # openapi.yaml + orval.config.ts
 │   ├── api-client-react/    # Generated React Query hooks (do not edit)
@@ -173,44 +177,59 @@ user_settings  userId, preferredModel, customApiKey,
 
 map_shares     id, mapId, token, permission,
                createdBy, createdAt
+
+guest_sessions id, token, expiresAt, createdAt
 ```
 
 - `nodeType` is `"note"` (standard card) or `"ai_chat"` (Claude conversation card)
 - `imageUrl` stores the GCS object path (e.g. `/objects/uploads/<uuid>`) for the node's attached image
 - `chatHistory` is a JSON array of `{ role, text, imageUrl? }` entries
+- `guest_sessions.token` is a 48-character random string sent as `X-Guest-Token` on every API request; guest maps are stored with `userId = "guest_<token>"`
 
 ---
 
 ## API overview
 
-All routes require a valid Clerk session cookie except `/api/healthz` and the storage serving endpoints.
+Most thought-map routes accept either a valid Clerk session **or** a valid `X-Guest-Token` header. Settings and share-management routes require a Clerk session.
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/healthz` | Health check |
-| GET | `/api/thought-maps` | List user's maps |
-| POST | `/api/thought-maps` | Create a map |
-| GET | `/api/thought-maps/:id` | Full map with nodes + connections |
-| PATCH | `/api/thought-maps/:id` | Rename a map |
-| DELETE | `/api/thought-maps/:id` | Delete a map |
-| GET | `/api/thought-maps/:mapId/nodes` | List nodes |
-| POST | `/api/thought-maps/:mapId/nodes` | Create node (auto-connects to all existing) |
-| PATCH | `/api/thought-maps/:mapId/nodes/:nodeId` | Update node |
-| DELETE | `/api/thought-maps/:mapId/nodes/:nodeId` | Delete node |
-| POST | `/api/thought-maps/:mapId/nodes/:nodeId/chat` | **SSE** — AI chat stream (vision-aware) |
-| POST | `/api/thought-maps/:mapId/nodes/:nodeId/ask-claude` | **SSE** — Ask Claude about a note (vision-aware) |
-| GET | `/api/thought-maps/:mapId/connections` | List connections |
-| POST | `/api/thought-maps/:mapId/connections` | Create connection |
-| DELETE | `/api/thought-maps/:mapId/connections/:id` | Delete connection |
-| GET | `/api/thought-maps/:mapId/shares` | List share links |
-| POST | `/api/thought-maps/:mapId/shares` | Create share link |
-| DELETE | `/api/thought-maps/:mapId/shares/:shareId` | Revoke share link |
-| GET | `/api/shared/:token` | Resolve share token → map data |
-| GET | `/api/user/settings` | Get AI preferences |
-| PUT | `/api/user/settings` | Update AI preferences |
-| POST | `/api/storage/uploads/request-url` | Get GCS presigned PUT URL for upload |
-| GET | `/api/storage/objects/*` | Serve uploaded files |
-| GET | `/api/storage/public-objects/*` | Serve public files |
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/healthz` | None | Health check |
+| POST | `/api/guest-sessions` | None | Create a 30-min guest session |
+| DELETE | `/api/guest-sessions/:token` | None | Delete a guest session and its data |
+| POST | `/api/guest-sessions/:token/cleanup` | None | Same as DELETE — used by `sendBeacon` on tab close |
+| GET | `/api/thought-maps` | Clerk or Guest | List user's maps |
+| POST | `/api/thought-maps` | Clerk or Guest | Create a map (guests limited to 2) |
+| GET | `/api/thought-maps/:id` | Clerk or Guest | Full map with nodes + connections |
+| PATCH | `/api/thought-maps/:id` | Clerk or Guest | Rename a map |
+| DELETE | `/api/thought-maps/:id` | Clerk or Guest | Delete a map |
+| GET | `/api/thought-maps/:mapId/nodes` | Clerk or Guest | List nodes |
+| POST | `/api/thought-maps/:mapId/nodes` | Clerk or Guest | Create node (auto-connects) |
+| PATCH | `/api/thought-maps/:mapId/nodes/:nodeId` | Clerk or Guest | Update node |
+| DELETE | `/api/thought-maps/:mapId/nodes/:nodeId` | Clerk or Guest | Delete node |
+| POST | `/api/thought-maps/:mapId/nodes/:nodeId/chat` | Clerk or Guest | **SSE** — AI chat stream (vision-aware) |
+| POST | `/api/thought-maps/:mapId/nodes/:nodeId/ask-claude` | Clerk or Guest | **SSE** — Ask Claude about a note |
+| GET | `/api/thought-maps/:mapId/connections` | Clerk or Guest | List connections |
+| POST | `/api/thought-maps/:mapId/connections` | Clerk or Guest | Create connection |
+| DELETE | `/api/thought-maps/:mapId/connections/:id` | Clerk or Guest | Delete connection |
+| POST | `/api/thought-maps/:mapId/organize` | Clerk or Guest | AI auto-organize all nodes |
+| GET | `/api/thought-maps/:mapId/shares` | Clerk | List share links |
+| POST | `/api/thought-maps/:mapId/shares` | Clerk | Create share link |
+| DELETE | `/api/thought-maps/:mapId/shares/:shareId` | Clerk | Revoke share link |
+| GET | `/api/shared/:token` | None | Resolve share token → map data |
+| GET | `/api/user/settings` | Clerk | Get AI preferences |
+| PUT | `/api/user/settings` | Clerk | Update AI preferences |
+| POST | `/api/storage/uploads/request-url` | Clerk or Guest | Get presigned PUT URL for upload |
+| GET | `/api/storage/objects/*` | None | Serve uploaded files |
+| GET | `/api/storage/public-objects/*` | None | Serve public files |
+
+### Guest session lifecycle
+
+1. Client calls `POST /api/guest-sessions` → receives `{ token, expiresAt }` (30-minute TTL)
+2. Token is stored in `sessionStorage` (auto-cleared on tab close) and attached to every request as `X-Guest-Token`
+3. Guest maps are stored with `userId = "guest_<token>"`
+4. On tab close, `sendBeacon` fires `POST /api/guest-sessions/:token/cleanup` to remove data immediately
+5. A server-side job runs every 2 minutes to delete any remaining expired sessions and their data
 
 ### Image upload flow
 
@@ -222,7 +241,7 @@ All routes require a valid Clerk session cookie except `/api/healthz` and the st
 
 ### WebSocket
 
-Connect to `ws://<host>/ws?mapId=<id>` (optionally `&token=<shareToken>` for shared maps). The server broadcasts the full updated map object after every mutation. Cursor positions are broadcast as `{ type: "cursor", userId, x, y, name, color }` messages.
+Connect to `ws://<host>/ws?mapId=<id>` (optionally `&token=<shareToken>` for shared maps, or `&guestToken=<guestToken>` for guest sessions). The server broadcasts the full updated map object after every mutation. Cursor positions are broadcast as `{ type: "cursor", userId, x, y, name, color }` messages.
 
 ---
 
