@@ -70,17 +70,17 @@ function HomeRedirect() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-dot-grid h-screen w-screen">
       <div className="max-w-md space-y-6">
-        <img 
-          src={`${basePath}/images/empty-state.png`}
-          alt="Empty notebook and floating shapes"
-          className="w-48 h-48 mx-auto opacity-90 drop-shadow-xl"
-        />
-        <div className="space-y-2">
-          <h1 className="text-3xl font-display font-bold text-foreground">Think Freely</h1>
-          <p className="text-muted-foreground text-lg">
-            Create visual notes, connect ideas, and collaborate with Claude AI on an infinite canvas.
-          </p>
-        </div>
+        <img
+  			src="/logo-text.png"
+  			alt="Synaptica"
+  			className="h-56 w-auto mx-auto object-contain"
+		/>
+		<div className="space-y-2">
+  			<h1 className="text-3xl font-display font-bold text-foreground">Think Freely</h1>
+  			<p className="text-muted-foreground text-lg">
+    			Create visual notes, connect ideas, and collaborate with Synaptica on an infinite canvas.
+  			</p>
+		</div>
         <div className="flex flex-col gap-3">
           <Button size="lg" className="h-14 px-8 text-base shadow-xl rounded-full" onClick={() => setLocation("/sign-up")}>
             Get Started

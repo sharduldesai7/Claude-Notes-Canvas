@@ -98,18 +98,15 @@ export function MapSidebar({ isGuest = false, onSignUp, onSignIn }: MapSidebarPr
       <div className="h-14 border-b border-border/50 bg-sidebar/80 backdrop-blur flex items-center justify-between px-3 shrink-0">
         <AnimatePresence initial={false}>
           {!collapsed && (
-            <motion.h2
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="font-display font-bold text-lg text-foreground flex items-center gap-2 overflow-hidden"
-            >
-              <div className="bg-primary/10 p-1.5 rounded-lg text-primary shrink-0">
-                <SynapticaLogo size={20} />
-              </div>
-              <span className="truncate">Synaptica</span>
-            </motion.h2>
+            <motion.div
+  				initial={{ opacity: 0 }}
+  				animate={{ opacity: 1 }}
+  				exit={{ opacity: 0 }}
+  				transition={{ duration: 0.15 }}
+  				className="flex items-center overflow-hidden px-1"
+			>
+  				<img src="/logo-wordmark.png" alt="Synaptica" className="h-7 w-auto object-contain" />
+			</motion.div>
           )}
         </AnimatePresence>
 

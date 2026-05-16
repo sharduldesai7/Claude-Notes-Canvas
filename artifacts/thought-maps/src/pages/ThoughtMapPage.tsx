@@ -65,8 +65,8 @@ export function ThoughtMapPage() {
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-dot-grid">
                 <div className="max-w-md space-y-6">
                   <img
-                    src={`${import.meta.env.BASE_URL}images/empty-state.png`}
-                    alt="Empty notebook and floating shapes"
+                    src={`${import.meta.env.BASE_URL}logo-text.png`}
+                    alt="Synaptica"
                     className="w-48 h-48 mx-auto opacity-90 drop-shadow-xl"
                   />
                   <div className="space-y-2">

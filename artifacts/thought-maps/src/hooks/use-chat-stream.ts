@@ -23,7 +23,20 @@ export function useChatStream() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, contextNodeIds, ...(imageObjectPath ? { imageObjectPath } : {}) }),
       });
-      if (!res.ok || !res.body) return;
+      if (!res.ok || !res.body) {
+      	if (!res.ok) {
+    		try {
+      			const errData = await res.json();
+      			const errMsg = errData?.error?.error?.message || errData?.error || "Something went wrong.";
+      			onChunk(errMsg);
+      			onDone([...[], { role: "assistant" as const, text: errMsg }]);
+    		} catch {
+      			onChunk("Something went wrong. Please try again.");
+      			onDone([{ role: "assistant" as const, text: "Something went wrong. Please try again." }]);
+    		}
+  		}
+  		return;
+	}
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

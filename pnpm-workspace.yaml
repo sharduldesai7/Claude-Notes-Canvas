@@ -4,6 +4,12 @@ packages:
   - lib/integrations/*
   - scripts
 
+allowBuilds:
+  '@clerk/shared': true
+  '@google/genai': true
+  esbuild: true
+  protobufjs: true
+
 autoInstallPeers: false
 
 catalog:

@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or, count } from "drizzle-orm";
 import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
+const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 import { requireAuthOrGuest } from "../middlewares/auth";
 import { broadcastMapUpdate } from "../ws-rooms";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -484,27 +484,25 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
 
-    let client = anthropic;
-    if (customApiKey?.trim()) {
-      const opts: { apiKey: string; baseURL?: string } = { apiKey: customApiKey };
-      if (customBaseUrl) opts.baseURL = customBaseUrl;
-      client = new Anthropic(opts) as any;
-    }
-
     let fullResponse = "";
-    const stream = (client as any).messages.stream({
-      model: preferredModel,
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    });
+	const geminiMessages = anthropicMessages.map((m: any) => ({
+  		role: m.role === "assistant" ? "model" : "user",
+  		parts: [{ text: typeof m.content === "string" ? m.content : m.content.find((c: any) => c.type === "text")?.text || "" }],
+	}));
 
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        fullResponse += event.delta.text;
-        res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
-      }
-    }
+	const geminiStream = await genai.models.generateContentStream({
+  		model: "gemini-2.5-flash",
+  		contents: geminiMessages,
+  		config: { systemInstruction: systemPrompt },
+	});
+
+	for await (const chunk of geminiStream) {
+  		const text = chunk.text ?? "";
+  		if (text) {
+    		fullResponse += text;
+    		res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+  		}
+	}
 
     // Persist complete history (user msg + assistant response)
     const finalHistory = [...updatedHistory, { role: "assistant" as const, text: fullResponse }];
@@ -518,10 +516,11 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     broadcastMapUpdate(mapId).catch(() => {});
   } catch (err) {
     req.log.error(err);
+    const anthropicMessage = (err as any)?.error?.error?.message;
     if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to get chat response" });
+      res.status(500).json({ error: anthropicMessage || "Failed to get chat response" });
     } else {
-      res.write(`data: ${JSON.stringify({ error: "Stream error" })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: anthropicMessage || "Stream error" })}\n\n`);
       res.end();
     }
   }
@@ -601,31 +600,19 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
       : prompt;
 
     let fullResponse = "";
+	const askGeminiStream = await genai.models.generateContentStream({
+  		model: "gemini-2.5-flash",
+  		contents: [{ role: "user", parts: [{ text: typeof askUserContent === "string" ? askUserContent : (askUserContent as any[]).find((c: any) => c.type === "text")?.text || "" }] }],
+  		config: { systemInstruction: systemPrompt },
+	});
 
-    // Use custom API key if user has provided one, otherwise use default
-    let client = anthropic;
-    if (customApiKey && customApiKey.trim()) {
-      const opts: { apiKey: string; baseURL?: string } = { apiKey: customApiKey };
-      if (customBaseUrl) opts.baseURL = customBaseUrl;
-      client = new Anthropic(opts) as any;
-    }
-
-    // Determine model — validate it's a supported model if using defaults
-    const model = preferredModel || "claude-sonnet-4-6";
-
-    const stream = (client as any).messages.stream({
-      model,
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages: [{ role: "user", content: askUserContent as any }],
-    });
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        fullResponse += event.delta.text;
-        res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
-      }
-    }
+	for await (const chunk of askGeminiStream) {
+  		const text = chunk.text ?? "";
+  		if (text) {
+    		fullResponse += text;
+    		res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+  		}
+	}
 
     // Save the full response
     await db
@@ -735,21 +722,21 @@ router.post("/:mapId/organize", async (req: any, res) => {
       return `ID ${n.id} | Type: ${type} | Title: "${n.title || "Untitled"}" | Content: "${(n.content || "").slice(0, 300)}"`;
     }).join("\n");
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 256,
-      messages: [{
-        role: "user",
-        content: `You are organizing notes on a visual thinking canvas. Arrange these notes in the most logical left-to-right reading order — consider narrative flow, cause-and-effect, chronology, or general-to-specific, whichever best fits the content.
+    const response = await genai.models.generateContent({
+  		model: "gemini-2.5-flash",
+  		contents: [{
+    		role: "user",
+    		parts: [{ text: `You are organizing notes on a visual thinking canvas. Arrange these notes in the most logical left-to-right reading order — consider narrative flow, cause-and-effect, chronology, or general-to-specific, whichever best fits the content.
 
 Return ONLY a JSON array of note IDs in the order they should appear left-to-right. Nothing else. Example: [12, 7, 3, 15]
 
 Notes:
-${noteSummaries}`,
-      }],
-    });
+${noteSummaries}` }],
+  		}],
+	});
 
-    const rawText = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+	const rawText = response.text?.trim() ?? "";
+
     const jsonMatch = rawText.match(/\[[\d,\s]+\]/);
     let orderedIds: number[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 

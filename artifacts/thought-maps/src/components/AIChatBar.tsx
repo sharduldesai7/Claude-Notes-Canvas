@@ -57,7 +57,7 @@ export function AIChatBar({ onSend, isStreaming }: AIChatBarProps) {
             e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Ask Claude anything — creates a new AI chat note…"
+          placeholder="Ask Synaptica anything — creates a new AI chat note..."
           rows={1}
           className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground font-serif leading-relaxed min-h-[28px] max-h-[120px] py-0.5"
           disabled={isStreaming}
