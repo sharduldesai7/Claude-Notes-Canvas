@@ -127,7 +127,7 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle>AI Model Configuration</CardTitle>
                 <CardDescription>
-                  Choose which AI model powers your /claude commands. Default uses Replit's free Claude access.
+                  By default, Synaptica uses Gemini. Enter your own API key below to override this.  Leave blank to switch back to the default.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">

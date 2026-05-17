@@ -1,28 +1,28 @@
 # Synaptica
 
-> An infinite canvas for your thoughts — create notes, attach images, connect ideas, and think alongside Claude AI.
+> An infinite canvas for your thoughts — create notes, connect ideas, and think alongside AI.
 
-![Synaptica](https://img.shields.io/badge/version-0.1.0-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6) ![License](https://img.shields.io/badge/license-MIT-green)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
 ## What it is
 
-Synaptica is a mind-mapping web app built around an infinite canvas. Each "Thought Map" is a spatial workspace where ideas live as draggable cards that you can connect, color, and chat with.
+Synaptica is a mind-mapping web app built around an infinite canvas. Each "Thought Map" is a spatial workspace where ideas live as draggable cards that you can connect, color, and chat with using AI.
 
 **Core features:**
 
 - **Infinite canvas** — pan, zoom, and place notes anywhere; double-click to create a new one
 - **Note cards** — editable title and body, 8 color themes, resizable, auto-connected to every other node on creation
-- **Image attachments** — attach an image to any note; Claude can see and reason about it when you ask
-- **AI Chat nodes** — a bottom chat bar spawns a dedicated Claude conversation node wired into your canvas context; attach images to individual messages for vision-aware replies
-- **Ask Claude** — one-click AI analysis of any note, with streaming response shown inline
-- **AI Auto-organize** — one click repositions all nodes into a clean, readable grid layout ordered by Claude
-- **Configurable model** — choose Claude Sonnet, Opus, or Haiku; bring your own API key + base URL if needed
+- **Image attachments** — attach an image to any note; AI can see and reason about it when you ask
+- **AI Chat nodes** — a bottom chat bar spawns a dedicated AI conversation node wired into your canvas context
+- **Ask AI** — one-click AI analysis of any note, with streaming response shown inline
+- **AI Auto-organize** — one click repositions all nodes into a clean, readable grid layout
+- **Configurable AI** — uses Gemini by default (free tier); bring your own API key to override
 - **Shareable maps** — generate view-only or edit-access links; share with anyone, no account required
-- **Real-time collaboration** — live cursors and instant data sync via WebSocket; changes appear for all editors immediately
-- **Guest sessions** — try the full app without signing in; 30-minute sessions with up to 2 maps, full sidebar, and a non-threatening countdown timer
-- **Onboarding** — five-step guided tour on first sign-in (also shown fresh for each new guest session)
+- **Real-time collaboration** — live cursors and instant data sync via WebSocket
+- **Guest sessions** — try the full app without signing in; 30-minute sessions with up to 2 maps
+- **Onboarding** — five-step guided tour on first sign-in
 - **Google sign-in** via Clerk auth
 
 ---
@@ -38,19 +38,50 @@ Synaptica is a mind-mapping web app built around an infinite canvas. Each "Thoug
 | Database | PostgreSQL + Drizzle ORM |
 | Validation | Zod v4, drizzle-zod |
 | API contract | OpenAPI 3 → Orval codegen |
-| AI | Anthropic Claude — SSE streaming, vision |
+| AI | Google Gemini (default) — SSE streaming; user-configurable API key |
 | Auth | Clerk (Google OAuth) |
 | Real-time | WebSockets (ws) |
-| File storage | Replit Object Storage (Google Cloud Storage) |
 | Animations | Framer Motion |
 | Gestures | @use-gesture/react |
+
+---
+
+## Solution architecture
+
+```mermaid
+flowchart TD
+    User(["User"])
+
+    subgraph Browser
+        FE["Frontend\nReact + Vite\nInfinite canvas · Sidebar · Settings · Auth UI"]
+    end
+
+    subgraph Server
+        API["API Server\nExpress 5 + Node 24\nREST routes · SSE streaming · WebSocket rooms"]
+    end
+
+    subgraph External Services
+        DB[("PostgreSQL\nDrizzle ORM · Neon")]
+        AI["Google Gemini API\nStreaming · SSE · Vision"]
+        Auth["Clerk Auth\nGoogle OAuth · JWT"]
+        Storage["Object Storage\nGCS · Image uploads"]
+    end
+
+    User -->|"HTTPS"| FE
+    FE -->|"HTTP + WebSocket"| API
+    API -->|"Drizzle ORM"| DB
+    API -->|"SSE streaming"| AI
+    API -->|"JWT verification"| Auth
+    API -->|"Presigned URLs"| Storage
+    FE -->|"Auth UI"| Auth
+```
 
 ---
 
 ## Project structure
 
 ```
-synaptica/
+Claude-Notes-Canvas/
 ├── artifacts/
 │   ├── api-server/          # Express REST + SSE + WebSocket API
 │   │   └── src/
@@ -61,101 +92,101 @@ synaptica/
 │   │       └── ws-rooms.ts  # WebSocket room management
 │   └── thought-maps/        # React + Vite frontend
 │       └── src/
-│           ├── components/  # Canvas, NodeCard, AIChatNode, MapSidebar,
-│           │                #   GuestSessionBanner, OnboardingModal, …
-│           ├── hooks/       # use-nodes, use-chat-stream, use-ask-claude,
-│           │                #   use-guest-session, use-realtime-sync, …
-│           └── pages/       # ThoughtMapPage, GuestMapPage, SettingsPage
+│           ├── components/  # Canvas, NodeCard, AIChatNode, MapSidebar, ...
+│           ├── hooks/        # use-chat-stream, use-ask-claude, use-thought-maps, ...
+│           └── pages/        # ThoughtMapPage, GuestMapPage, SettingsPage, ...
 ├── lib/
-│   ├── api-spec/            # openapi.yaml + orval.config.ts
-│   ├── api-client-react/    # Generated React Query hooks (do not edit)
-│   ├── api-zod/             # Generated Zod validators (do not edit)
-│   ├── db/                  # Drizzle schema + migration helpers
-│   └── integrations-anthropic-ai/  # Anthropic client wrapper
+│   ├── api-spec/            # OpenAPI spec + Orval codegen config
+│   ├── api-client-react/    # Generated React Query hooks
+│   ├── api-zod/             # Generated Zod schemas from OpenAPI
+│   ├── db/                  # Drizzle ORM schema + DB connection
+│   └── integrations-anthropic-ai/  # Legacy Anthropic client (unused)
 ├── scripts/
 ├── pnpm-workspace.yaml
-└── tsconfig.base.json
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
 
 ---
 
-## Prerequisites
+## Local development setup
 
-- **Node.js** ≥ 20 (24 recommended)
-- **pnpm** ≥ 9
-- **PostgreSQL** database
-- **Clerk** account (for auth)
-- **Anthropic API key** (or use the Replit AI Integrations proxy)
-- **Google Cloud Storage bucket** (or use Replit Object Storage — auto-provisioned on Replit)
+### Prerequisites
 
----
-
-## Getting started
+- Node 24 (use nvm: `nvm install 24 && nvm use 24`)
+- pnpm 11+ (`npm install -g pnpm`)
+- PostgreSQL (local or cloud — Neon/Supabase free tier works)
+- A [Clerk](https://clerk.com) account (free) with Google OAuth enabled
+- A [Google AI Studio](https://aistudio.google.com/apikey) API key (free tier)
 
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/synaptica.git
-cd synaptica
+git clone https://github.com/sharduldesai7/Claude-Notes-Canvas.git
+cd Claude-Notes-Canvas
 pnpm install
 ```
 
-### 2. Configure environment variables
+> Note: if the preinstall script blocks you, rename `"preinstall"` to `"_preinstall"` in the root `package.json` and run again.
 
+### 2. Environment files
+
+**`artifacts/api-server/.env`**
 ```env
-# Clerk — create a project at https://clerk.com
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
+PORT=8080
+NODE_ENV=development
 
-# PostgreSQL
+CLERK_SECRET_KEY=sk_test_...
+CLERK_PUBLISHABLE_KEY=pk_test_...
+
 DATABASE_URL=postgresql://user:password@localhost:5432/synaptica
 
-# Anthropic (only needed if NOT using Replit AI Integrations)
-AI_INTEGRATIONS_ANTHROPIC_API_KEY=sk-ant-...
-AI_INTEGRATIONS_ANTHROPIC_BASE_URL=https://api.anthropic.com
+GEMINI_API_KEY=your_gemini_key_here
 
-# Object Storage (auto-provisioned on Replit via setupObjectStorage())
-DEFAULT_OBJECT_STORAGE_BUCKET_ID=replit-objstore-...
-PUBLIC_OBJECT_SEARCH_PATHS=gs://replit-objstore-.../public
-PRIVATE_OBJECT_DIR=gs://replit-objstore-.../objects
+# Leave these as placeholders if not using image uploads
+DEFAULT_OBJECT_STORAGE_BUCKET_ID=local-placeholder
+PUBLIC_OBJECT_SEARCH_PATHS=gs://placeholder/public
+PRIVATE_OBJECT_DIR=gs://placeholder/objects
 ```
 
-> **Running on Replit?** `DATABASE_URL`, `CLERK_*`, `AI_INTEGRATIONS_*`, and object storage vars are all provisioned automatically. No manual setup needed.
+**`artifacts/thought-maps/.env`**
+```env
+PORT=5173
+BASE_PATH=/
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
 
-### 3. Push the database schema
+### 3. Database setup
 
 ```bash
+# Create DB and user in psql
+CREATE USER synaptica WITH PASSWORD 'yourpassword';
+CREATE DATABASE synaptica OWNER synaptica;
+
+# Push schema
 pnpm --filter @workspace/db run push
 ```
 
-### 4. Start development servers
+### 4. Start servers
+
+Open two terminals:
 
 ```bash
-# API server (port 8080)
+# Terminal 1 — API server (port 8080)
 pnpm --filter @workspace/api-server run dev
 
-# Frontend (port auto-assigned, check terminal output)
+# Terminal 2 — Frontend (port 5173)
 pnpm --filter @workspace/thought-maps run dev
 ```
 
-Both are hot-reload enabled. The frontend proxies `/api/*` to the API server automatically.
+Open `http://localhost:5173`.
 
 ---
 
-## Development workflows
+## AI configuration
 
-| Command | What it does |
-|---|---|
-| `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks + Zod validators from `openapi.yaml` |
-| `pnpm --filter @workspace/db run push` | Apply schema changes to the database |
-| `pnpm run typecheck` | Full TypeScript check across all packages |
-
-### Changing the API
-
-1. Edit `lib/api-spec/openapi.yaml`
-2. Add the route handler in `artifacts/api-server/src/routes/`
-3. Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-4. The new React Query hook is immediately available in the frontend
+By default Synaptica uses **Google Gemini** (`gemini-2.5-flash`) via the `GEMINI_API_KEY` in the server `.env`. Users can override this in Settings by entering their own API key — leave it blank to revert to the default.
 
 ---
 
@@ -181,82 +212,45 @@ map_shares     id, mapId, token, permission,
 guest_sessions id, token, expiresAt, createdAt
 ```
 
-- `nodeType` is `"note"` (standard card) or `"ai_chat"` (Claude conversation card)
-- `imageUrl` stores the GCS object path (e.g. `/objects/uploads/<uuid>`) for the node's attached image
+- `nodeType` is `"note"` or `"ai_chat"`
 - `chatHistory` is a JSON array of `{ role, text, imageUrl? }` entries
-- `guest_sessions.token` is a 48-character random string sent as `X-Guest-Token` on every API request; guest maps are stored with `userId = "guest_<token>"`
+- Guest maps are stored with `userId = "guest_<token>"`
 
 ---
 
 ## API overview
 
-Most thought-map routes accept either a valid Clerk session **or** a valid `X-Guest-Token` header. Settings and share-management routes require a Clerk session.
+All thought-map routes accept either a valid Clerk session or a valid `X-Guest-Token` header. Settings and share-management routes require a Clerk session.
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/api/healthz` | None | Health check |
-| POST | `/api/guest-sessions` | None | Create a 30-min guest session |
-| DELETE | `/api/guest-sessions/:token` | None | Delete a guest session and its data |
-| POST | `/api/guest-sessions/:token/cleanup` | None | Same as DELETE — used by `sendBeacon` on tab close |
-| GET | `/api/thought-maps` | Clerk or Guest | List user's maps |
-| POST | `/api/thought-maps` | Clerk or Guest | Create a map (guests limited to 2) |
-| GET | `/api/thought-maps/:id` | Clerk or Guest | Full map with nodes + connections |
-| PATCH | `/api/thought-maps/:id` | Clerk or Guest | Rename a map |
-| DELETE | `/api/thought-maps/:id` | Clerk or Guest | Delete a map |
-| GET | `/api/thought-maps/:mapId/nodes` | Clerk or Guest | List nodes |
-| POST | `/api/thought-maps/:mapId/nodes` | Clerk or Guest | Create node (auto-connects) |
-| PATCH | `/api/thought-maps/:mapId/nodes/:nodeId` | Clerk or Guest | Update node |
-| DELETE | `/api/thought-maps/:mapId/nodes/:nodeId` | Clerk or Guest | Delete node |
-| POST | `/api/thought-maps/:mapId/nodes/:nodeId/chat` | Clerk or Guest | **SSE** — AI chat stream (vision-aware) |
-| POST | `/api/thought-maps/:mapId/nodes/:nodeId/ask-claude` | Clerk or Guest | **SSE** — Ask Claude about a note |
-| GET | `/api/thought-maps/:mapId/connections` | Clerk or Guest | List connections |
-| POST | `/api/thought-maps/:mapId/connections` | Clerk or Guest | Create connection |
-| DELETE | `/api/thought-maps/:mapId/connections/:id` | Clerk or Guest | Delete connection |
-| POST | `/api/thought-maps/:mapId/organize` | Clerk or Guest | AI auto-organize all nodes |
-| GET | `/api/thought-maps/:mapId/shares` | Clerk | List share links |
-| POST | `/api/thought-maps/:mapId/shares` | Clerk | Create share link |
-| DELETE | `/api/thought-maps/:mapId/shares/:shareId` | Clerk | Revoke share link |
-| GET | `/api/shared/:token` | None | Resolve share token → map data |
-| GET | `/api/user/settings` | Clerk | Get AI preferences |
-| PUT | `/api/user/settings` | Clerk | Update AI preferences |
-| POST | `/api/storage/uploads/request-url` | Clerk or Guest | Get presigned PUT URL for upload |
-| GET | `/api/storage/objects/*` | None | Serve uploaded files |
-| GET | `/api/storage/public-objects/*` | None | Serve public files |
-
-### Guest session lifecycle
-
-1. Client calls `POST /api/guest-sessions` → receives `{ token, expiresAt }` (30-minute TTL)
-2. Token is stored in `sessionStorage` (auto-cleared on tab close) and attached to every request as `X-Guest-Token`
-3. Guest maps are stored with `userId = "guest_<token>"`
-4. On tab close, `sendBeacon` fires `POST /api/guest-sessions/:token/cleanup` to remove data immediately
-5. A server-side job runs every 2 minutes to delete any remaining expired sessions and their data
-
-### Image upload flow
-
-1. Client calls `POST /api/storage/uploads/request-url` with `{ name, size, contentType }`
-2. Server returns `{ uploadURL, objectPath }` — a short-lived GCS presigned PUT URL
-3. Client PUTs the file directly to GCS at `uploadURL`
-4. Client stores `objectPath` (e.g. `/objects/uploads/<uuid>`) — this is what gets saved to the node
-5. To display: `<img src={"/api/storage" + objectPath} />`
-
-### WebSocket
-
-Connect to `ws://<host>/ws?mapId=<id>` (optionally `&token=<shareToken>` for shared maps, or `&guestToken=<guestToken>` for guest sessions). The server broadcasts the full updated map object after every mutation. Cursor positions are broadcast as `{ type: "cursor", userId, x, y, name, color }` messages.
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/thought-maps` | List user's maps |
+| POST | `/api/thought-maps` | Create map |
+| GET | `/api/thought-maps/:id` | Get full map (nodes + connections) |
+| PATCH | `/api/thought-maps/:id` | Update map |
+| DELETE | `/api/thought-maps/:id` | Delete map |
+| GET/POST | `/api/thought-maps/:mapId/nodes` | List/create nodes |
+| PATCH/DELETE | `/api/thought-maps/:mapId/nodes/:nodeId` | Update/delete node |
+| POST | `/api/thought-maps/:mapId/nodes/:nodeId/chat` | SSE AI chat stream |
+| POST | `/api/thought-maps/:mapId/nodes/:nodeId/ask-claude` | SSE AI analysis stream |
+| POST | `/api/thought-maps/:mapId/organize` | AI auto-arrange nodes |
+| GET/POST | `/api/thought-maps/:mapId/shares` | List/create share links |
+| DELETE | `/api/thought-maps/:mapId/shares/:shareId` | Revoke share link |
+| GET/PUT | `/api/user/settings` | Get/update AI settings |
 
 ---
 
-## Contributing
+## Development workflows
 
-1. **Fork** and create a feature branch: `git checkout -b feat/your-feature`
-2. **Make changes** — follow existing patterns in components, hooks, and API routes
-3. **Run codegen** if you touched the OpenAPI spec
-4. **Push schema** if you changed the database schema
-5. **Open a pull request** with a clear description of what changed and why
+| Command | What it does |
+|---|---|
+| `pnpm --filter @workspace/api-spec run codegen` | Regenerate React Query hooks + Zod validators from `openapi.yaml` |
+| `pnpm --filter @workspace/db run push` | Apply schema changes to the database |
+| `pnpm run typecheck` | Full TypeScript check across all packages |
 
-Keep PRs focused — one feature or fix per PR. For larger changes, open an issue first.
+### Changing the API
 
----
-
-## License
-
-MIT
+1. Edit `lib/api-spec/openapi.yaml`
+2. Add the route handler in `artifacts/api-server/src/routes/`
+3. Run codegen: `pnpm --filter @workspace/api-spec run codegen`
+4. The new React Query hook is immediately available in the frontend

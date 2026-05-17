@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, count } from "drizzle-orm";
 import { db, thoughtMapsTable, nodesTable, connectionsTable, userSettingsTable, mapSharesTable } from "@workspace/db";
 import { GoogleGenAI } from "@google/genai";
-const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+//const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 import { requireAuthOrGuest } from "../middlewares/auth";
 import { broadcastMapUpdate } from "../ws-rooms";
 import { ObjectStorageService } from "../lib/objectStorage";
@@ -400,6 +400,7 @@ router.post("/:mapId/nodes/:nodeId/chat", async (req: any, res) => {
     const preferredModel = userSettings?.preferredModel || "claude-sonnet-4-6";
     const customApiKey = userSettings?.customApiKey;
     const customBaseUrl = userSettings?.customBaseUrl;
+    const genai = new GoogleGenAI({ apiKey: customApiKey?.trim() || process.env.GEMINI_API_KEY! });
 
     // Parse existing history
     let history: { role: "user" | "assistant"; text: string; imageUrl?: string }[] = [];
@@ -553,6 +554,7 @@ router.post("/:mapId/nodes/:nodeId/ask-claude", async (req: any, res) => {
     const preferredModel = userSettings?.preferredModel || "claude-sonnet-4-6";
     const customApiKey = userSettings?.customApiKey;
     const customBaseUrl = userSettings?.customBaseUrl;
+    const genai = new GoogleGenAI({ apiKey: customApiKey?.trim() || process.env.GEMINI_API_KEY! });
 
     // Load node to check for attached image (also verifies it exists)
     const [askNodeRow] = await db.select().from(nodesTable).where(and(eq(nodesTable.id, nodeId), eq(nodesTable.mapId, mapId)));
